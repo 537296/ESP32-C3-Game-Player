@@ -6,19 +6,19 @@
 */
 
 #include<dinosaur_model/dinosaur.h>
-#include<dinosaur_model/road.h>
+
 #include<dinosaur_model/obstacle.h>
 #include<dinosaur_model/cloud.h>
 #include<dinosaur_model/Object.h>
 
 bool draw();
 void draw_dinosaur();
-void draw_road();
+
 void draw_obstacle();
 void draw_cloud();
 
 bool dinosaur_move();
-void road_move();
+
 void obstacle_move();
 void cloud_move();
 

@@ -19,7 +19,8 @@
 #include <esp32-hal-ledc.h>
 #include <esp_sleep.h>
 #include <driver/gpio.h>
-
+#include <WiFi.h>
+#include <time.h>
 #include <esp_pm.h>
 // ========== 引脚定义 ==========
 #define BL_PIN        7
@@ -30,14 +31,6 @@
 #define DHT_PIN       21
 #define BUZZER_PIN    8  // 蜂鸣器 GPIO20
 
-
-#include <WiFi.h>
-#include <time.h>
-
-
-// 预设WiFi网络列表（最多5个）
-#define MAX_WIFI_NETWORKS 5
-
 struct WiFiNetwork {
   const char* ssid;
   const char* password;
@@ -45,7 +38,7 @@ struct WiFiNetwork {
 
 #include "config.h"
 
-WiFiNetwork wifiNetworks[MAX_WIFI_NETWORKS] = {
+WiFiNetwork wifiNetworks[5] = {
   {WIFI_1_SSID, WIFI_1_PASSWORD},
   {WIFI_2_SSID, WIFI_2_PASSWORD},
   {WIFI_3_SSID, WIFI_3_PASSWORD},
@@ -55,7 +48,6 @@ WiFiNetwork wifiNetworks[MAX_WIFI_NETWORKS] = {
 
 int wifiNetworkCount = WIFI_NETWORK_COUNT;
 
-//int wifiNetworkCount = 5;      // 实际网络数量
 int selectedWifiIndex = 0;     // 当前选中的WiFi索引
 bool wifiSelectMode = false;   // 是否处于WiFi选择模式
 
