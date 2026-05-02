@@ -351,7 +351,7 @@ void showImage30x30Fast(const uint8_t* img, int x, int y) {
 
   void print(int num) {
     char buf[10];
-    sprintf(buf, "%d", num);
+    //sprintf(buf, "%d", num);
     print(buf);
   }
 

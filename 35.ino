@@ -79,6 +79,7 @@ enum UIState {
   STATE_GAME_DINO,
   STATE_SETTINGS,
   STATE_SETTING_DETAIL,
+  STATE_TETRIS,
   STATE_ABOUT,
   STATE_ALARM_SETTING,
   STATE_TIME_SETTING,
@@ -97,14 +98,14 @@ int settingsSelection = 0;
 
 
 // ========== 扫雷游戏相关变量 ==========
-#define MINE_SIZE 10  // 10x10网格
+#define MINE_SIZE 10 
 
 
 // 地雷数量设置
 int mineCount = 15;  // 默认15个地雷
 const int minMineCount = 5;
 const int maxMineCount = 30;
-int mineCountSelectIndex = 0;  
+//int mineCountSelectIndex = 0;  
 // 格子状态
 enum CellState {
   CELL_HIDDEN = 0,   // 未翻开
@@ -117,7 +118,7 @@ int mineField[MINE_SIZE][MINE_SIZE];      // -1=地雷, 0-8=周围地雷数
 CellState cellState[MINE_SIZE][MINE_SIZE]; // 格子状态
 bool mineGameOver = false;
 bool mineGameWin = false;
-int mineCursorX = 0;  // 光标位置 (0-9)
+int mineCursorX = 0;  
 int mineCursorY = 0;
 int revealedCount = 0;  // 已翻开格子数
 int flaggedCount = 0;   // 标记旗子数
@@ -137,10 +138,55 @@ int lastMineCursorY = 0;
 #define MINE_REVEALED_COLOR 0xDEFB  
 #define MINE_GRID_COLOR     0x7BEF  
 
-String calcExpression = "";  // 当前输入的表达式
-String calcResult = "";      // 计算结果
-bool calcError = false;      // 错误标志
-bool needClearOnNextInput = false;  // 新增：标记下次输入是否清空
+// ========== 俄罗斯方块 ==========
+#define TETRIS_COLS 10
+#define TETRIS_ROWS 18      
+#define TETRIS_CELL_SIZE 5   
+
+const int tetrisShapes[5][4][4] = {
+  // I 形
+  {{0,0,0,0}, {1,1,1,1}, {0,0,0,0}, {0,0,0,0}},
+  // O 形
+  {{1,1,0,0}, {1,1,0,0}, {0,0,0,0}, {0,0,0,0}},
+  // T 形
+  {{1,1,1,0}, {0,1,0,0}, {0,0,0,0}, {0,0,0,0}},
+  // L 形
+  {{1,1,1,0}, {1,0,0,0}, {0,0,0,0}, {0,0,0,0}},
+  // Z 形
+  {{1,1,0,0}, {0,1,1,0}, {0,0,0,0}, {0,0,0,0}}
+};
+
+// 方块颜色
+const uint16_t tetrisColors[5] = {CYAN, YELLOW, MAGENTA, BLUE, GREEN};
+
+// 游戏数据
+int tetrisBoard[TETRIS_ROWS][TETRIS_COLS];
+int currentShape[4][4];
+int currentShapeType;
+uint16_t currentShapeColor;
+int currentX, currentY;
+bool tetrisGameOver = false;
+int tetrisScore = 0;
+unsigned long lastFallTime = 0;
+int tetrisSpeed = 500;  // 默认500ms
+const int minTetrisSpeed = 100;   // 最快100ms
+const int maxTetrisSpeed = 1000;  // 最慢1000ms
+int tetrisSpeedSelectIndex = 0;   
+int tetrisStartX = 60;
+int tetrisStartY = 15;
+int nextShape[4][4];
+int nextShapeType;
+uint16_t nextShapeColor;
+
+// 预览区域位置
+int previewX = 2;
+int previewY = tetrisStartY + 10;
+int previewSize = 4;  // 预览方块大小
+
+String calcExpression = "";  
+String calcResult = "";      
+bool calcError = false;      
+bool needClearOnNextInput = false;  
 
 // ========== 计算器按钮定义 ==========
 struct CalcButton {
@@ -189,7 +235,6 @@ double evaluateExpression(String expr) {
         double exponent = expr.substring(i + 1, rightEnd + 1).toDouble();
         double result = pow(base, exponent);
         
-        // 替换表达式中的乘方部分
         String before = expr.substring(0, leftStart);
         String after = expr.substring(rightEnd + 1);
         expr = before + String(result, 10) + after;  
@@ -328,7 +373,7 @@ const char* settingsItems[] = {
   "Network Time",
   "Brightness",
   "Alarm",
-  "Mine Count",    
+  "Game Set",    
   "nothing here",
   "nothing here"
 };
@@ -426,7 +471,6 @@ void setBrightness(int level);
 void handleTimeSetting();
 void handleBrightnessSetting();
 void handleAlarmSetting();
-void handleMainMenu();
 //void handleGameSelect();
 //void handleSettings();
 //void handleSettingDetail();
@@ -439,6 +483,14 @@ void checkAlarm();
 void stopAlarm();
 void checkButtons();
 //void showImage30x30Fast();
+void initTetris();
+//void drawTetris();
+void handleTetrisInput();
+void rotateShape();
+bool checkCollision(int shape[4][4], int px, int py);
+void placeShape();
+void spawnShape();
+
 
 void drawCharWithBg(int x, int y, char c, uint16_t color) {
   int charWidth = 8;
@@ -1996,9 +2048,13 @@ void checkButtons() {
       calcResult = "";
       calcError = false;
       drawCalculator();
-    } else if (gameSelection == 1) { 
+    } else if (gameSelection == 1) {
       currentState = STATE_MINESWEEPER;
       initMinesweeper();
+    } else if (gameSelection == 2) {  // 第3个游戏 - 俄罗斯方块
+      currentState = STATE_TETRIS;
+      tft.fillScreen(BLACK);
+      initTetris();
     } else if (gameSelection == 5) {
       currentState = STATE_GAME_DINO;
       initDinoGame();
@@ -2035,33 +2091,76 @@ void checkButtons() {
     
     // ========== 设置详情界面 ==========
    
-case STATE_SETTING_DETAIL:
-  if (left) {
-    currentState = STATE_SETTINGS;
-    drawSettings();
-    lastPress = currentTime;
-  }
-  else if (right) {
-    if (settingsSelection == 0) {
-      currentState = STATE_TIME_SETTING;
-      drawTimeSetting();
-    } else if (settingsSelection == 1) {
-      currentState = STATE_NETWORK_TIME;
-      drawNetworkTimeSetting();
-    } else if (settingsSelection == 2) {
-      currentState = STATE_BRIGHTNESS_SETTING;
-      drawBrightnessSetting();
-    } else if (settingsSelection == 3) {
-      currentState = STATE_ALARM_SETTING;
-      drawAlarmSetting();
-    } else if (settingsSelection == 4) {
-      currentState = STATE_MINE_COUNT_SETTING;
-       tft.fillScreen(BLACK);
-      drawMineCountSetting();
-    }
-    lastPress = currentTime;
-  }
-  break;
+    // ========== 设置详情界面 ==========
+    case STATE_SETTING_DETAIL:
+      if (left) {
+        currentState = STATE_SETTINGS;
+        drawSettings();
+        lastPress = currentTime;
+      }
+      else if (right) {
+        if (settingsSelection == 0) {
+          currentState = STATE_TIME_SETTING;
+          drawTimeSetting();
+        } else if (settingsSelection == 1) {
+          currentState = STATE_NETWORK_TIME;
+          drawNetworkTimeSetting();
+        } else if (settingsSelection == 2) {
+          currentState = STATE_BRIGHTNESS_SETTING;
+          drawBrightnessSetting();
+        } else if (settingsSelection == 3) {
+          currentState = STATE_ALARM_SETTING;
+          drawAlarmSetting();
+        } else if (settingsSelection == 4) {
+          currentState = STATE_MINE_COUNT_SETTING;
+          tft.fillScreen(BLACK);
+          drawMineCountSetting();
+        }
+        lastPress = currentTime;
+      }
+      break;
+    
+    // ========== 游戏设置界面（地雷数量 + 俄罗斯方块速度） ==========
+    case STATE_MINE_COUNT_SETTING:
+      // 左键切换选择项
+      if (left) {
+        tetrisSpeedSelectIndex = (tetrisSpeedSelectIndex - 1 + 2) % 2;
+        drawMineCountSetting();
+        lastPress = currentTime;
+      }
+      // 右键切换选择项
+      else if (right) {
+        tetrisSpeedSelectIndex = (tetrisSpeedSelectIndex + 1) % 2;
+        drawMineCountSetting();
+        lastPress = currentTime;
+      }
+      // 上键增加
+      else if (up) {
+        if (tetrisSpeedSelectIndex == 0) {
+          if (mineCount < maxMineCount) mineCount++;
+        } else {
+          if (tetrisSpeed < maxTetrisSpeed) tetrisSpeed += 50;
+        }
+        drawMineCountSetting();
+        lastPress = currentTime;
+      }
+      // 下键减少
+      else if (down) {
+        if (tetrisSpeedSelectIndex == 0) {
+          if (mineCount > minMineCount) mineCount--;
+        } else {
+          if (tetrisSpeed > minTetrisSpeed) tetrisSpeed -= 50;
+        }
+        drawMineCountSetting();
+        lastPress = currentTime;
+      }
+      // OK键返回
+      else if (ok) {
+        currentState = STATE_SETTINGS;
+        drawSettings();
+        lastPress = currentTime;
+      }
+      break;
 case STATE_TIME_SETTING:
       if (left) {
         // 左键返回设置菜单
@@ -2107,7 +2206,6 @@ case STATE_TIME_SETTING:
         lastPress = currentTime;
       }
       break;
-// 添加新的 STATE_NETWORK_TIME 处理
 case STATE_NETWORK_TIME:
   if (wifiSelectMode) {
     // WiFi选择模式
@@ -2265,16 +2363,16 @@ case STATE_NETWORK_TIME:
         lastPress = currentTime;
       }
       break;
-    
-   case STATE_CALCULATOR:
-      checkCalculatorInput();
-      break;
     case STATE_MINESWEEPER:
   handleMinesweeperInput();
   break;
-  case STATE_MINE_COUNT_SETTING:
-  handleMineCountSetting();
+
+case STATE_TETRIS: 
+  handleTetrisInput();
   break;
+   case STATE_CALCULATOR:      
+      checkCalculatorInput();    
+      break;   
     default:
       break;
   }
@@ -2962,34 +3060,51 @@ if (revealedCount == MINE_SIZE * MINE_SIZE - mineCount) {
 }
 }
 
-// ========== 地雷数量设置界面 ==========
 void drawMineCountSetting() {
-  //tft.fillScreen(BLACK);
-  //tft.drawString("MINE COUNT", 20, 10, CYAN);
+  // 绘制标题
+  tft.drawString("GAME SETTINGS", 5, 10, CYAN);
   
-  
+  // ========== 地雷数量设置 ==========
+  if (tetrisSpeedSelectIndex == 0) {
+    tft.drawString(">", 5, 28, YELLOW);
+    tft.fillRect(5, 55, 10, 10, BLACK);
+  }
   char countBuf[20];
   sprintf(countBuf, "Mines: %d", mineCount);
-  tft.fillRect(82 , 40, 23, 15,BLACK);
-  tft.drawString(countBuf, 25, 40, WHITE);
+  tft.fillRect(65, 28, 50, 10, BLACK);
+  tft.drawString(countBuf, 20, 28, WHITE);
   
+  // 地雷数量进度条
+  int barWidth = map(mineCount, minMineCount, maxMineCount, 10, 80);
+  tft.drawRect(20, 40, 80, 6, WHITE);
+  tft.fillRect(21, 41, 78, 4, BLACK);
+  tft.fillRect(21, 41, barWidth - 2, 4, RED);
   
-  int barWidth = map(mineCount, minMineCount, maxMineCount, 10, 100);
-  tft.drawRect(14, 60, 100, 10, WHITE);
-  tft.fillRect(15, 61, 98, 8, BLACK);
-  tft.fillRect(15, 61, barWidth - 2, 8, RED);
+  // ========== 俄罗斯方块速度设置 ==========
+  if (tetrisSpeedSelectIndex == 1) {
+    tft.drawString(">", 5, 55, YELLOW);
+    tft.fillRect(5, 28, 10, 10, BLACK);
+  }
+  char speedBuf[20];
+  sprintf(speedBuf, "Speed: %dms", tetrisSpeed);
+  tft.fillRect(65, 55, 50, 10, BLACK);
+  tft.drawString(speedBuf, 20, 55, WHITE);
   
-  
-  tft.drawString("5", 10, 75, 0x8410);
-  tft.drawString("30", 105, 75, 0x8410);
+  // 速度进度条
+  int speedBarWidth = map(tetrisSpeed, minTetrisSpeed, maxTetrisSpeed, 10, 80);
+  tft.drawRect(20, 67, 80, 6, WHITE);
+  tft.fillRect(21, 68, 78, 4, BLACK);
+  tft.fillRect(21, 68, speedBarWidth - 2, 4, BLUE);
   
   // 操作提示
-  tft.drawString("UP/DOWN: adjust", 5, 95, GREEN);
-  //tft.drawString("OK: save", 20, 110, YELLOW);
-  //tft.drawString("LEFT: cancel", 15, 122, WHITE);
+  //tft.drawString("UP/DN: adjust", 5, 85, GREEN);
+  //tft.drawString("L/R: select", 5, 97, GREEN);
+  //tft.drawString("OK: save", 5, 109, YELLOW);
   
   drawTimeOnScreen(62, 2);
 }
+
+
 void restorePixel(int px, int py) {
   // 判断这个像素属于哪个格子
   for (int gy = 0; gy < MINE_SIZE; gy++) {
@@ -3020,7 +3135,6 @@ void restorePixel(int px, int py) {
   }
 }
 
-// 恢复角落区域
 void restoreCellCorner(int px, int py, int gx, int gy) {
   if (px < 0 || px >= SCREEN_WIDTH || py < 0 || py >= SCREEN_HEIGHT) return;
   drawSingleCell(gx, gy);
@@ -3072,7 +3186,6 @@ void drawSingleCell(int x, int y) {
     tft.fillRect(cellX, cellY, mineCellSize, mineCellSize, MINE_BG_COLOR);
   }
   
-  // 绘制网格线
   tft.drawRect(cellX, cellY, mineCellSize, mineCellSize, MINE_GRID_COLOR);
   
   // 绘制格子内容
@@ -3100,7 +3213,6 @@ void drawSingleCell(int x, int y) {
 }
 
 void clearCursor(int x, int y) {
-  // 重绘当前格子
   drawSingleCell(x, y);
   
 
@@ -3184,7 +3296,7 @@ static unsigned long lastMoveTime = 0;
     return;
   }
   
-  // OK + DOWN 组合键返回（备用）
+ 
   bool okDownReturn = (okPressedNow && downPressed);
   if (okDownReturn) {
     currentState = STATE_GAME_SELECT;
@@ -3264,32 +3376,55 @@ void handleMineCountSetting() {
   bool downPressed = (digitalRead(BTN_DOWN) == LOW);
   bool leftPressed = (digitalRead(BTN_LEFT) == LOW);
   bool okPressed = (digitalRead(BTN_OK) == LOW);
+  bool rightPressed = (digitalRead(BTN_DOWN) == LOW && digitalRead(BTN_LEFT) == LOW);
   
-
+  // 左键切换选择项
   if (leftPressed && (currentTime - lastAdjustTime > 200)) {
-    currentState = STATE_SETTINGS;
-    drawSettings();
+    tetrisSpeedSelectIndex = (tetrisSpeedSelectIndex - 1 + 2) % 2;
+    drawMineCountSetting();
     lastAdjustTime = currentTime;
     return;
   }
   
-  // 上键增加
+  // 右键切换选择项
+  if (rightPressed && (currentTime - lastAdjustTime > 200)) {
+    tetrisSpeedSelectIndex = (tetrisSpeedSelectIndex + 1) % 2;
+    drawMineCountSetting();
+    lastAdjustTime = currentTime;
+    return;
+  }
+  
+  // 上键增加数值
   if (upPressed && (currentTime - lastAdjustTime > 200)) {
-    if (mineCount < maxMineCount) {
-      mineCount++;
-      //tft.fillScreen(BLACK);
-      drawMineCountSetting();
+    if (tetrisSpeedSelectIndex == 0) {
+      // 调整地雷数量
+      if (mineCount < maxMineCount) {
+        mineCount++;
+      }
+    } else {
+      // 调整方块速度（数值越小越快）
+      if (tetrisSpeed < maxTetrisSpeed) {
+        tetrisSpeed += 50;
+      }
     }
+    drawMineCountSetting();
     lastAdjustTime = currentTime;
   }
   
-  // 下键减少
+  // 下键减少数值
   if (downPressed && (currentTime - lastAdjustTime > 200)) {
-    if (mineCount > minMineCount) {
-      mineCount--;
-      //tft.fillScreen(BLACK);
-      drawMineCountSetting();
+    if (tetrisSpeedSelectIndex == 0) {
+      // 调整地雷数量
+      if (mineCount > minMineCount) {
+        mineCount--;
+      }
+    } else {
+      // 调整方块速度
+      if (tetrisSpeed > minTetrisSpeed) {
+        tetrisSpeed -= 50;
+      }
     }
+    drawMineCountSetting();
     lastAdjustTime = currentTime;
   }
   
@@ -3333,9 +3468,434 @@ void showImageBuffered(const uint8_t* img, int x, int y, int width, int height) 
 }
 
 
-void setup() {
-  initBuzzer();
+// ========== 俄罗斯方块游戏函数 ==========
+
+void initTetris() {
+  // 清空游戏板
+  for (int y = 0; y < TETRIS_ROWS; y++) {
+    for (int x = 0; x < TETRIS_COLS; x++) {
+      tetrisBoard[y][x] = -1;
+    }
+  }
   
+  tetrisGameOver = false;
+  tetrisScore = 0;
+  lastFallTime = millis();
+  
+  // 清屏
+  tft.fillScreen(BLACK);
+  
+  // 绘制游戏板外框
+  tft.drawRect(tetrisStartX - 2, tetrisStartY - 2, 
+               TETRIS_COLS * TETRIS_CELL_SIZE + 4, 
+               TETRIS_ROWS * TETRIS_CELL_SIZE + 4, WHITE);
+  
+  // 绘制游戏板背景
+  tft.fillRect(tetrisStartX, tetrisStartY, 
+               TETRIS_COLS * TETRIS_CELL_SIZE, 
+               TETRIS_ROWS * TETRIS_CELL_SIZE, BLACK);
+  
+  // 生成方块
+  spawnShape();
+  
+  // 绘制预览区域
+  drawPreview();
+  
+  // 绘制当前方块
+  for (int y = 0; y < 4; y++) {
+    for (int x = 0; x < 4; x++) {
+      if (currentShape[y][x]) {
+        int boardY = currentY + y;
+        int boardX = currentX + x;
+        if (boardY >= 0 && boardY < TETRIS_ROWS && boardX >= 0 && boardX < TETRIS_COLS) {
+          drawTetrisCell(boardX, boardY, currentShapeColor);
+        }
+      }
+    }
+  }
+  
+  // 绘制分数
+  tft.fillRect(0, 0, SCREEN_WIDTH, 13, BLACK);
+  tft.drawString("S:", 0, 2, WHITE);
+  tft.drawNumber(0, 15, 2, YELLOW);
+  
+  //// 操作提示
+  //tft.drawString("L/R:move", 2, 122, 0x8410);
+  //tft.drawString("UP:rotate", 62, 122, 0x8410);
+}
+void spawnShape() {
+  // 第一次调用时，生成两个方块
+  static bool firstSpawn = true;
+  
+  if (firstSpawn) {
+    firstSpawn = false;
+    // 生成当前方块
+    currentShapeType = random(0, 5);
+    currentShapeColor = tetrisColors[currentShapeType];
+    for (int y = 0; y < 4; y++) {
+      for (int x = 0; x < 4; x++) {
+        currentShape[y][x] = tetrisShapes[currentShapeType][y][x];
+      }
+    }
+    // 生成下一个方块
+    nextShapeType = random(0, 5);
+    nextShapeColor = tetrisColors[nextShapeType];
+    for (int y = 0; y < 4; y++) {
+      for (int x = 0; x < 4; x++) {
+        nextShape[y][x] = tetrisShapes[nextShapeType][y][x];
+      }
+    }
+  } else {
+    // 将下一个方块变为当前方块
+    currentShapeType = nextShapeType;
+    currentShapeColor = nextShapeColor;
+    for (int y = 0; y < 4; y++) {
+      for (int x = 0; x < 4; x++) {
+        currentShape[y][x] = nextShape[y][x];
+      }
+    }
+    // 生成新的下一个方块
+    nextShapeType = random(0, 5);
+    nextShapeColor = tetrisColors[nextShapeType];
+    for (int y = 0; y < 4; y++) {
+      for (int x = 0; x < 4; x++) {
+        nextShape[y][x] = tetrisShapes[nextShapeType][y][x];
+      }
+    }
+    // 重绘预览区域
+    drawPreview();
+  }
+  
+  currentX = TETRIS_COLS / 2 - 2;
+  currentY = 0;
+  
+  if (checkCollision(currentShape, currentX, currentY)) {
+    tetrisGameOver = true;
+  }
+}
+// 绘制下一个方块预览
+void drawPreview() {
+  tft.fillRect(previewX, previewY, 4 * previewSize + 10, 4 * previewSize + 20, BLACK);
+  tft.drawString("NEXT", previewX + 2, previewY - 8, WHITE);
+  
+  // 绘制预览方块
+  for (int y = 0; y < 4; y++) {
+    for (int x = 0; x < 4; x++) {
+      if (nextShape[y][x]) {
+        int px = previewX + 8 + x * previewSize;
+        int py = previewY + y * previewSize + 3;
+        tft.fillRect(px, py, previewSize, previewSize, nextShapeColor);
+        tft.drawRect(px, py, previewSize, previewSize, 0x8410);
+      }
+    }
+  }
+}
+bool checkCollision(int shape[4][4], int px, int py) {
+  for (int y = 0; y < 4; y++) {
+    for (int x = 0; x < 4; x++) {
+      if (shape[y][x]) {
+        int boardX = px + x;
+        int boardY = py + y;
+        
+        if (boardX < 0 || boardX >= TETRIS_COLS || boardY >= TETRIS_ROWS) {
+          return true;
+        }
+        if (boardY >= 0 && tetrisBoard[boardY][boardX] != -1) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+void placeShape() {
+  // 将当前方块写入游戏板
+  for (int y = 0; y < 4; y++) {
+    for (int x = 0; x < 4; x++) {
+      if (currentShape[y][x]) {
+        int boardY = currentY + y;
+        int boardX = currentX + x;
+        if (boardY >= 0 && boardY < TETRIS_ROWS && boardX >= 0 && boardX < TETRIS_COLS) {
+          tetrisBoard[boardY][boardX] = currentShapeType;
+        }
+      }
+    }
+  }
+  
+  // 消除行并重绘
+  for (int y = TETRIS_ROWS - 1; y >= 0; y--) {
+    bool lineFull = true;
+    for (int x = 0; x < TETRIS_COLS; x++) {
+      if (tetrisBoard[y][x] == -1) { lineFull = false; break; }
+    }
+    
+    if (lineFull) {
+      tetrisScore += 1;
+      for (int yy = y; yy > 0; yy--) {
+        for (int x = 0; x < TETRIS_COLS; x++) {
+          tetrisBoard[yy][x] = tetrisBoard[yy - 1][x];
+        }
+      }
+      for (int x = 0; x < TETRIS_COLS; x++) {
+        tetrisBoard[0][x] = -1;
+      }
+      y++;
+    }
+  }
+  
+  // 重绘游戏板
+  for (int y = 0; y < TETRIS_ROWS; y++) {
+    for (int x = 0; x < TETRIS_COLS; x++) {
+      if (tetrisBoard[y][x] != -1) {
+        drawTetrisCell(x, y, tetrisColors[tetrisBoard[y][x]]);
+      } else {
+        clearTetrisCell(x, y);
+      }
+    }
+  }
+  
+  // 生成新方块
+  spawnShape();
+  
+  // 绘制新方块
+  if (!tetrisGameOver) {
+    for (int y = 0; y < 4; y++) {
+      for (int x = 0; x < 4; x++) {
+        if (currentShape[y][x]) {
+          int boardY = currentY + y;
+          int boardX = currentX + x;
+          if (boardY >= 0 && boardY < TETRIS_ROWS && boardX >= 0 && boardX < TETRIS_COLS) {
+            drawTetrisCell(boardX, boardY, currentShapeColor);
+          }
+        }
+      }
+    }
+  }
+  
+  // 刷新分数
+  tft.fillRect(0, 0, 40, 13, BLACK);
+  tft.drawString("S:", 0, 2, WHITE);
+  tft.drawNumber(tetrisScore, 15, 2, YELLOW);
+  
+  // 游戏结束
+  if (tetrisGameOver) {
+    tft.fillRect(0, tetrisStartY + 50, 20, 30, BLACK);
+    tft.drawString("GAME OVER", 20, tetrisStartY + 55, RED);
+    tft.drawString("OK to return", 15, tetrisStartY + 70, GREEN);
+  }
+}
+
+
+
+void rotateShape() {
+  int rotated[4][4] = {0};
+  
+  // 顺时针旋转90度
+  for (int y = 0; y < 4; y++) {
+    for (int x = 0; x < 4; x++) {
+      rotated[x][3 - y] = currentShape[y][x];
+    }
+  }
+  
+  // 检查旋转后是否碰撞
+  if (!checkCollision(rotated, currentX, currentY)) {
+    // 应用旋转
+    for (int y = 0; y < 4; y++) {
+      for (int x = 0; x < 4; x++) {
+        currentShape[y][x] = rotated[y][x];
+      }
+    }
+  }
+}
+
+// 绘制单个方块格子
+void drawTetrisCell(int boardX, int boardY, uint16_t color) {
+  int px = tetrisStartX + boardX * TETRIS_CELL_SIZE;
+  int py = tetrisStartY + boardY * TETRIS_CELL_SIZE;
+  tft.fillRect(px, py, TETRIS_CELL_SIZE, TETRIS_CELL_SIZE, color);
+  tft.drawRect(px, py, TETRIS_CELL_SIZE, TETRIS_CELL_SIZE, 0x8410);
+}
+
+// 清除单个方块格子
+void clearTetrisCell(int boardX, int boardY) {
+  int px = tetrisStartX + boardX * TETRIS_CELL_SIZE;
+  int py = tetrisStartY + boardY * TETRIS_CELL_SIZE;
+  tft.fillRect(px, py, TETRIS_CELL_SIZE, TETRIS_CELL_SIZE, BLACK);
+}
+
+
+void handleTetrisInput() {
+  if (currentState != STATE_TETRIS) return;
+  
+  static unsigned long lastMoveTime = 0;
+  unsigned long currentTime = millis();
+  // 游戏结束处理
+  if (tetrisGameOver) {
+    if (digitalRead(BTN_OK) == LOW && (currentTime - lastMoveTime > 200)) {
+      currentState = STATE_GAME_SELECT;
+      lastState = STATE_TETRIS;
+      gameSelection = 2;
+      drawGameSelect();
+      lastMoveTime = currentTime;
+    }
+    return;
+  }
+  
+  if (currentTime - lastMoveTime < 300) return;
+  
+  bool upPressed = (digitalRead(BTN_UP) == LOW);
+  bool downPressed = (digitalRead(BTN_DOWN) == LOW);
+  bool leftPressed = (digitalRead(BTN_LEFT) == LOW);
+  bool okPressedNow = (digitalRead(BTN_OK) == LOW);
+  
+  bool rightKey = (downPressed && leftPressed);
+
+  if (leftPressed && !rightKey) {
+    if (!checkCollision(currentShape, currentX - 1, currentY)) {
+      // 清除旧位置
+      for (int y = 0; y < 4; y++) {
+        for (int x = 0; x < 4; x++) {
+          if (currentShape[y][x]) {
+            int boardY = currentY + y;
+            int boardX = currentX + x;
+            if (boardY >= 0 && boardY < TETRIS_ROWS && boardX >= 0 && boardX < TETRIS_COLS) {
+              clearTetrisCell(boardX, boardY);
+            }
+          }
+        }
+      }
+      currentX--;
+      // 绘制新位置
+      for (int y = 0; y < 4; y++) {
+        for (int x = 0; x < 4; x++) {
+          if (currentShape[y][x]) {
+            int boardY = currentY + y;
+            int boardX = currentX + x;
+            if (boardY >= 0 && boardY < TETRIS_ROWS && boardX >= 0 && boardX < TETRIS_COLS) {
+              drawTetrisCell(boardX, boardY, currentShapeColor);
+            }
+          }
+        }
+      }
+    }
+    lastMoveTime = currentTime;
+  }
+  
+  // 右键移动方块
+  if (rightKey) {
+    if (!checkCollision(currentShape, currentX + 1, currentY)) {
+      for (int y = 0; y < 4; y++) {
+        for (int x = 0; x < 4; x++) {
+          if (currentShape[y][x]) {
+            int boardY = currentY + y;
+            int boardX = currentX + x;
+            if (boardY >= 0 && boardY < TETRIS_ROWS && boardX >= 0 && boardX < TETRIS_COLS) {
+              clearTetrisCell(boardX, boardY);
+            }
+          }
+        }
+      }
+      currentX++;
+      for (int y = 0; y < 4; y++) {
+        for (int x = 0; x < 4; x++) {
+          if (currentShape[y][x]) {
+            int boardY = currentY + y;
+            int boardX = currentX + x;
+            if (boardY >= 0 && boardY < TETRIS_ROWS && boardX >= 0 && boardX < TETRIS_COLS) {
+              drawTetrisCell(boardX, boardY, currentShapeColor);
+            }
+          }
+        }
+      }
+    }
+    lastMoveTime = currentTime;
+  }
+  
+
+  if (upPressed) {
+    // 清除旧方块
+    for (int y = 0; y < 4; y++) {
+      for (int x = 0; x < 4; x++) {
+        if (currentShape[y][x]) {
+          int boardY = currentY + y;
+          int boardX = currentX + x;
+          if (boardY >= 0 && boardY < TETRIS_ROWS && boardX >= 0 && boardX < TETRIS_COLS) {
+            clearTetrisCell(boardX, boardY);
+          }
+        }
+      }
+    }
+    rotateShape();
+    // 绘制新方块
+    for (int y = 0; y < 4; y++) {
+      for (int x = 0; x < 4; x++) {
+        if (currentShape[y][x]) {
+          int boardY = currentY + y;
+          int boardX = currentX + x;
+          if (boardY >= 0 && boardY < TETRIS_ROWS && boardX >= 0 && boardX < TETRIS_COLS) {
+            drawTetrisCell(boardX, boardY, currentShapeColor);
+          }
+        }
+      }
+    }
+    lastMoveTime = currentTime;
+  }
+  
+  // OK键返回
+  if (okPressedNow && (currentTime - lastMoveTime > 200)) {
+    currentState = STATE_GAME_SELECT;
+    lastState = STATE_TETRIS;
+    gameSelection = 2;
+    drawGameSelect();
+    lastMoveTime = currentTime;
+    return;
+  }
+  
+// 自动下落
+if (currentTime - lastFallTime > tetrisSpeed) { 
+  if (!checkCollision(currentShape, currentX, currentY + 1)) {
+    // 清除旧位置
+    for (int y = 0; y < 4; y++) {
+      for (int x = 0; x < 4; x++) {
+        if (currentShape[y][x]) {
+          int boardY = currentY + y;
+          int boardX = currentX + x;
+          if (boardY >= 0 && boardY < TETRIS_ROWS && boardX >= 0 && boardX < TETRIS_COLS) {
+            clearTetrisCell(boardX, boardY);
+          }
+        }
+      }
+    }
+    currentY++;
+    // 绘制新位置
+    for (int y = 0; y < 4; y++) {
+      for (int x = 0; x < 4; x++) {
+        if (currentShape[y][x]) {
+          int boardY = currentY + y;
+          int boardX = currentX + x;
+          if (boardY >= 0 && boardY < TETRIS_ROWS && boardX >= 0 && boardX < TETRIS_COLS) {
+            drawTetrisCell(boardX, boardY, currentShapeColor);
+          }
+        }
+      }
+    }
+  } else {
+    placeShape();
+  }
+  lastFallTime = currentTime;
+}
+}
+
+
+
+void setup() {
+  Serial.begin(115200);
+  initBuzzer();
+  tft.begin();
+  delay(200);
+  tft.setRotation(2);
+  dht.begin();
   pinMode(BL_PIN, OUTPUT);
   ledcAttach(BL_PIN, 5000, 8);
   ledcWrite(BL_PIN, brightnessValues[currentBrightnessLevel]);
@@ -3345,14 +3905,8 @@ void setup() {
   pinMode(BTN_LEFT, INPUT_PULLUP);
   pinMode(BTN_OK, INPUT_PULLUP);
   
-  randomSeed(analogRead(0));
-  
-  tft.begin();
-  delay(200);
-  tft.setRotation(2);
-  dht.begin();
-  Serial.begin(115200);
-  
+  //randomSeed(analogRead(0));
+  Serial.println("start");
   setHour = 0;
   setMinute = 0;
   setSecond = 0;
@@ -3374,10 +3928,8 @@ void setup() {
 }
 void loop() {
   readDHT11();
-  
   unsigned long currentMillis = millis();
   
-
   if (currentMillis - lastTimeUpdate >= 1000) {
     lastTimeUpdate = currentMillis;
     
@@ -3470,7 +4022,7 @@ void loop() {
   checkButtons();
   
 
-  if (currentState == STATE_GAME_DINO && !dinoGameOver) {
+   if (currentState == STATE_GAME_DINO && !dinoGameOver) {
     static unsigned long lastFrame = 0;
     if (currentMillis - lastFrame > 33) {
       lastFrame = currentMillis;

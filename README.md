@@ -45,6 +45,7 @@ WiFi 管理：支持多个 WiFi 预设，一键切换
 背光调节
 扫雷
 小恐龙跑酷
+俄罗斯方块
 计算器
 WiFi 管理：支持多个 WiFi 预设，一键切换
 计划添加其他小游戏
@@ -126,6 +127,7 @@ Alarm Function
 Backlight Adjustment
 Minesweeper
 Dino Run
+Tetris
 Calculator
 WiFi Management: support multiple WiFi presets with one-key switching
 Planning to add more mini-games
