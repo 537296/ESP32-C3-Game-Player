@@ -57,7 +57,7 @@ https://espressif.github.io/arduino-esp32/package_esp32_index.json
 
 ### 3. PCB 制板文件与电路图见 hardware 文件夹，可直接用嘉立创打样
 
-### 4. 添加示例视频（实际色彩效果更好）
+
 
 ---
 
@@ -138,7 +138,7 @@ https://espressif.github.io/arduino-esp32/package_esp32_index.json
 
 ### 3. PCB fabrication files and schematics are in the hardware folder, ready for direct use with JLCPCB.
 
-### 4. Add example video (actual color performance is better)
+
 
 ---
 
