@@ -57,7 +57,7 @@ https://espressif.github.io/arduino-esp32/package_esp32_index.json
 
 ### 3. PCB 制板文件与电路图见 hardware 文件夹，可直接用嘉立创打样
 
-
+### 4. 实际测试连续正常运行超过12小时
 
 ---
 
@@ -138,7 +138,7 @@ https://espressif.github.io/arduino-esp32/package_esp32_index.json
 
 ### 3. PCB fabrication files and schematics are in the hardware folder, ready for direct use with JLCPCB.
 
-
+### 4. Actual test shows continuous normal operation for over 12 hours.
 
 ---
 
