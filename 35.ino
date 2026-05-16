@@ -1,16 +1,14 @@
-/*
- * 恐龙游戏相关代码
- * 原始来源：https://github.com/pan1024/google-dinosaur-game-for-esp32
- * 原作者：pan1024
- * 说明：原始项目未声明许可证。本文件是基于原项目代码的修改版本。
-*/
-
-
-
-
-
-
-
+#include "set1img.h"
+#include "set2img.h"
+#include "set3img.h"
+#include "set4img.h"
+#include "img1.h"
+#include "img_1.h"
+#include "img_2.h"
+#include "img_3.h"
+#include "img_4.h"
+#include "img_5.h"
+#include "img_6.h"
 #include <Arduino.h>
 #include <DHT.h>
 #include <DHT_U.h>
@@ -22,21 +20,22 @@
 #include <WiFi.h>
 #include <time.h>
 #include <esp_pm.h>
-// ========== 引脚定义 ==========
+#include "jump_game.h"
 #define BL_PIN        7
-#define BTN_UP        5   // UP键 GPIO5 低电平有效
-#define BTN_DOWN      9   // DOWN键 GPIO9 低电平有效
-#define BTN_LEFT      10  // LEFT键 GPIO10 低电平有效
-#define BTN_OK        6   // OK键 GPIO6 低电平有效
+#define BTN_UP        5  
+#define BTN_DOWN      9  
+#define BTN_LEFT      10  
+#define BTN_OK        6   
 #define DHT_PIN       21
-#define BUZZER_PIN    8  // 蜂鸣器 GPIO20
+#define BUZZER_PIN    8  
+#include "config.h"
+#define MINE_SIZE 10 
 
 struct WiFiNetwork {
   const char* ssid;
   const char* password;
 };
-
-#include "config.h"
+JumpGameState jumpGame;
 
 WiFiNetwork wifiNetworks[5] = {
   {WIFI_1_SSID, WIFI_1_PASSWORD},
@@ -60,8 +59,8 @@ ST7735_HW_SPI tft;
 
 unsigned long lastPress = 0; 
 
-#define DHT_TYPE DHT11
-DHT dht(DHT_PIN, DHT_TYPE);
+
+DHT dht(DHT_PIN, DHT11);
 
 
 float temperature = 0.0;
@@ -87,7 +86,8 @@ enum UIState {
   STATE_NETWORK_TIME,
   STATE_CALCULATOR,
   STATE_MINESWEEPER ,
-  STATE_MINE_COUNT_SETTING  
+  STATE_MINE_COUNT_SETTING,
+  STATE_JUMP_GAME
 };
 
 UIState currentState = STATE_SPLASH;
@@ -97,16 +97,22 @@ int gameSelection = 1;
 int settingsSelection = 0;
 
 
-// ========== 扫雷游戏相关变量 ==========
-#define MINE_SIZE 10 
-
-
-// 地雷数量设置
-int mineCount = 15;  // 默认15个地雷
+int mineCount = 15;  
 const int minMineCount = 5;
 const int maxMineCount = 30;
-//int mineCountSelectIndex = 0;  
-// 格子状态
+int mineBackgroundIndex = 0;  
+const uint8_t* getMineBackground() {
+  switch(mineBackgroundIndex) {
+    case 0: return nullptr;      
+    case 1: return gImage_set1img; 
+    case 2: return gImage_set2img; 
+    case 3: return gImage_set3img; 
+    case 4: return gImage_set4img; 
+    default: return nullptr;
+  }
+}
+const int maxBackgroundIndex = 4;
+
 enum CellState {
   CELL_HIDDEN = 0,   // 未翻开
   CELL_REVEALED = 1, // 已翻开
@@ -114,26 +120,25 @@ enum CellState {
 };
 
 // 游戏数据
-int mineField[MINE_SIZE][MINE_SIZE];      // -1=地雷, 0-8=周围地雷数
+int mineField[MINE_SIZE][MINE_SIZE];      
 CellState cellState[MINE_SIZE][MINE_SIZE]; // 格子状态
 bool mineGameOver = false;
 bool mineGameWin = false;
 int mineCursorX = 0;  
 int mineCursorY = 0;
-int revealedCount = 0;  // 已翻开格子数
-int flaggedCount = 0;   // 标记旗子数
-// 网格位置参数
-int mineCellSize = 10;
+int revealedCount = 0;  
+int flaggedCount = 0;   
+#define MINE_SIZE 10  
+
+
+int mineCellSize = 12;  
 int mineGridWidth = MINE_SIZE * mineCellSize;
-int mineStartX = (SCREEN_WIDTH - mineGridWidth) / 2;
-int mineStartY = 10;
+int mineStartX = (SCREEN_WIDTH - mineGridWidth) / 2; 
+int mineStartY = (SCREEN_HEIGHT - mineGridWidth) / 2; 
 
 
-
-// 上一次光标位置（用于局部刷新）
 int lastMineCursorX = 0;
 int lastMineCursorY = 0;
-// 颜色定义
 #define MINE_BG_COLOR       0x1DFC  
 #define MINE_REVEALED_COLOR 0xDEFB  
 #define MINE_GRID_COLOR     0x7BEF  
@@ -168,9 +173,9 @@ int currentX, currentY;
 bool tetrisGameOver = false;
 int tetrisScore = 0;
 unsigned long lastFallTime = 0;
-int tetrisSpeed = 500;  // 默认500ms
-const int minTetrisSpeed = 100;   // 最快100ms
-const int maxTetrisSpeed = 1000;  // 最慢1000ms
+int tetrisSpeed = 500;  
+const int minTetrisSpeed = 100;   
+const int maxTetrisSpeed = 1000;  
 int tetrisSpeedSelectIndex = 0;   
 int tetrisStartX = 60;
 int tetrisStartY = 15;
@@ -195,13 +200,13 @@ struct CalcButton {
 };
 
 CalcButton calcButtons[20] = {
-  // 第1行: 7 8 9 / C
+
   {"7", 0, 0}, {"8", 0, 0}, {"9", 0, 0}, {"/", 0, 0}, {"C", 0, 0},
-  // 第2行: 4 5 6 * ^
+
   {"4", 0, 0}, {"5", 0, 0}, {"6", 0, 0}, {"*", 0, 0}, {"^", 0, 0},
-  // 第3行: 1 2 3 - RET
+
   {"1", 0, 0}, {"2", 0, 0}, {"3", 0, 0}, {"-", 0, 0}, {"R", 0, 0},
-  // 第4行: . 0 = + DEL
+
   {".", 0, 0}, {"0", 0, 0}, {"=", 0, 0}, {"+", 0, 0}, {"D", 0, 0}
 };
 int calcCursorX = 0;
@@ -213,17 +218,17 @@ double evaluateExpression(String expr) {
   
   if (expr.length() == 0) return 0;
   
-  // 第一步：处理所有乘方运算 ^
+  
   for (int i = 0; i < expr.length(); i++) {
     if (expr[i] == '^') {
-      // 找到左边的数字
+   
       int leftStart = i - 1;
       while (leftStart >= 0 && (isDigit(expr[leftStart]) || expr[leftStart] == '.')) {
         leftStart--;
       }
       leftStart++;
       
-      // 找到右边的数字
+     
       int rightEnd = i + 1;
       while (rightEnd < expr.length() && (isDigit(expr[rightEnd]) || expr[rightEnd] == '.')) {
         rightEnd++;
@@ -291,7 +296,7 @@ double evaluateExpression(String expr) {
   return result;
 }
 
-// ========== 格式化结果（保留最多5位小数，去除尾部0） ==========
+
 String formatResult(double value) {
   if (calcError) return "ERROR";
   
@@ -300,10 +305,10 @@ String formatResult(double value) {
     return String((int)round(value));
   }
   
-  // 格式化为最多5位小数
+
   char buffer[32];
   
-  // 尝试不同的小数位数，找到最合适的
+
   for (int decimals = 5; decimals >= 0; decimals--) {
     double multiplier = pow(10, decimals);
     double rounded = round(value * multiplier) / multiplier;
@@ -312,18 +317,18 @@ String formatResult(double value) {
       if (decimals == 0) {
         sprintf(buffer, "%d", (int)round(value));
       } else {
-        // 使用 %.*f 格式控制小数位数
+        
         char format[10];
         sprintf(format, "%%.%df", decimals);
         sprintf(buffer, format, value);
         
-        // 去除尾部的0
+       
         int len = strlen(buffer);
         while (len > 0 && buffer[len-1] == '0') {
           buffer[len-1] = '\0';
           len--;
         }
-        // 去除尾部的小数点
+        
         if (len > 0 && buffer[len-1] == '.') {
           buffer[len-1] = '\0';
         }
@@ -332,18 +337,17 @@ String formatResult(double value) {
     }
   }
   
-  // 默认显示5位小数
+  
   sprintf(buffer, "%.5f", value);
   return String(buffer);
 }
 
-// ========== 菜单项 ==========
+
 const char* mainMenuItems[] = {"GAMES", "SETTINGS", "ABOUT"};
 const int mainMenuItemCount = 3;
-
 const int gameItemCount = 6;
 
-// ========== 背光控制变量 ==========
+
 #define BRIGHTNESS_LEVELS 5
 const int brightnessValues[BRIGHTNESS_LEVELS] = {8, 64, 128, 192, 255};
 int currentBrightnessLevel = 4;
@@ -353,7 +357,7 @@ bool okPressedLong = false;
 bool okPressedState = false;
 
 
-// ========== 闹钟相关变量（时分秒） ==========
+
 int alarmHour = 0;          // 闹钟小时
 int alarmMinute = 0;        // 闹钟分钟
 int alarmSecond = 0;        // 闹钟秒
@@ -361,8 +365,8 @@ bool alarmEnabled = false;  // 闹钟是否开启
 bool alarmTriggered = false; // 闹钟是否已触发
 unsigned long alarmLastCheck = 0; // 上次检查闹钟时间
 unsigned long alarmStartTime = 0;  // 闹钟开始响的时间
-bool alarmRinging = false; // 是否正在响铃
-int alarmSelectIndex = 0;  // 0:小时, 1:分钟, 2:秒, 3:开关
+bool alarmRinging = false; 
+int alarmSelectIndex = 0;  
 
 
 bool isScreenOff = false;  
@@ -381,7 +385,7 @@ const int settingsItemCount = 7;
 
 
 
-// ========== 时间相关变量 ==========
+// ========== 时间
 int setHour = 0;
 int setMinute = 0;
 int setSecond = 0;
@@ -389,17 +393,8 @@ int timeSelectIndex = 0;
 String currentTime = "00:00:00";
 unsigned long lastTimeUpdate = 0;
 
-// ========== 图片数据 ==========
-#include "set1img.h"
-#include "set2img.h"
-#include "img1.h"
-#include "img_1.h"
-#include "img_2.h"
-#include "img_3.h"
-#include "img_4.h"
-#include "img_5.h"
-#include "img_6.h"
-// ========== 恐龙游戏相关变量 ==========
+
+// ========== 恐龙游戏
 #define GROUND_Y 120
 #define DINO_Y 87
 //#define SCROLL_SPEED 4
@@ -418,7 +413,9 @@ int dinoHighScore = 0;
 bool dinoGameOver = false;
 bool dinoJumping = false;
 int dinoJumpVelocity = 0;
-//bool dinoGameStarted = false;
+int nextObstacleDistance = 0;  // 下一个障碍物的生成距离
+const int minDistance = 40;    // 最小间隔距离
+const int maxDistance = 100;   // 最大间隔距离
 
 struct GameObject {
   int x, y;
@@ -440,14 +437,14 @@ GameObject* dinoObstacles[] = {&cactus_small, &cactus_big};
 int dinoObstacleCount = 2;
 int dinoCurrentObstacle = 0;
 
-// ========== 函数声明 ==========
+// ========== 函数
 void drawCharWithBg(int x, int y, char c, uint16_t color);
 void drawStringWithBg(int x, int y, const char* str, uint16_t color);
-void showImage565Fast(const uint8_t* img);
+//void showImageFast(const uint8_t* img);
 void updateTimeString();
 void drawTempHumOnSplash(bool forceRefresh = false);
 void drawTimeOnSplash(bool forceRefresh = false);
-void drawTimeOnScreen();
+void drawTimeOnScreen(int timeX, int timeY);
 void drawLargeTimeOnSplash(bool forceRefresh = false);
 void drawSplashScreen();
 void drawMainMenu();
@@ -459,8 +456,6 @@ void drawAlarmSetting();
 void drawSettingDetail();
 void drawAboutScreen();
 void drawDinoObject(GameObject &obj);
-//void clearDinoArea(int x, int y, int w, int h);
-void drawDinoGround();
 void drawDinoScore();
 void initDinoGame();
 void updateDinoGame();
@@ -468,9 +463,9 @@ void readDHT11();
 void setBrightness(int level);
 //void turnScreenOn();
 //void turnScreenOff();
-void handleTimeSetting();
-void handleBrightnessSetting();
-void handleAlarmSetting();
+//void handleTimeSetting();
+//void handleBrightnessSetting();
+//void handleAlarmSetting();
 //void handleGameSelect();
 //void handleSettings();
 //void handleSettingDetail();
@@ -523,32 +518,43 @@ void drawStringWithBg(int x, int y, const char* str, uint16_t color) {
 }
 
 
-void showImage565Fast(const uint8_t* img) {
-  int idx = 8;
-  uint16_t* lineBuffer = (uint16_t*)malloc(SCREEN_WIDTH * 2);
-  
-  if (!lineBuffer) return;
-  
-  for(int y = 0; y < SCREEN_HEIGHT; y++) {
-    for(int x = 0; x < SCREEN_WIDTH; x++) {
-      uint8_t high = img[idx++];
-      uint8_t low = img[idx++];
-      lineBuffer[x] = (high << 8) | low;
-    }
-    tft.drawImageMirror(0, y, SCREEN_WIDTH, 1, lineBuffer);
-  }
-  
-  free(lineBuffer);
-}
+void showImageFast(const uint8_t* img, int x = 0, int y = 0, int width = SCREEN_WIDTH, int height = SCREEN_HEIGHT) {
+  if (!img) return;
 
-// ========== 时间相关函数 ==========
+  int startCol = max(0, -x);
+  int endCol = min(width, SCREEN_WIDTH - x);
+  int startRow = max(0, -y);
+  int endRow = min(height, SCREEN_HEIGHT - y);
+  
+  if (startCol >= endCol || startRow >= endRow) return;
+  
+  int visibleWidth = endCol - startCol;
+  uint16_t lineBuffer[visibleWidth];
+  
+  int idx = 8 + (startRow * width + startCol) * 2;
+  
+  for (int row = startRow; row < endRow; row++) {
+    // 读取一行像素到缓冲区
+    for (int col = 0; col < visibleWidth; col++) {
+      uint8_t high = pgm_read_byte(&img[idx++]);
+      uint8_t low = pgm_read_byte(&img[idx++]);
+      lineBuffer[col] = (high << 8) | low;
+    }
+  
+    tft.drawImageMirror(x + startCol, y + row, visibleWidth, 1, lineBuffer);
+    if (endCol < width) {
+      idx += (width - endCol) * 2;
+    }
+  }
+}
+// ========== 时间
 void updateTimeString() {
   char timeStr[9];
   sprintf(timeStr, "%02d:%02d:%02d", setHour, setMinute, setSecond);
   currentTime = String(timeStr);
 }
 
-// ========== 开屏界面的温湿度显示 ==========
+// ========== 开屏界面的温湿度显示
 void drawTempHumOnSplash(bool forceRefresh) {
   static String lastTempHumStr = "";
   static bool firstRun = true;
@@ -623,7 +629,7 @@ void drawTempHumOnSplash(bool forceRefresh) {
   }
 }
 
-// ========== 开屏界面的时间显示（小字体） ==========
+// ========== 开屏界面的时间显示2
 void drawTimeOnSplash(bool forceRefresh) {
   static String lastTimeStr = "";
   static bool firstRun = true;
@@ -693,16 +699,17 @@ void drawTimeOnSplash(bool forceRefresh) {
   }
 }
 
-// ========== 时间显示函数（用于非开屏界面） ==========
+// ========== 时间显示函数
 
 void drawTimeOnScreen(int timeX, int timeY) {
-  // 设置详情界面中的 Option 5 和 Option 6 不显示时间
   if (currentState == STATE_SETTING_DETAIL) {
-    if (settingsSelection == 5 || settingsSelection == 6) {
+    if (settingsSelection == 5 || settingsSelection == 6 ) {
       return;
     }
   }
-  
+  if (currentState == STATE_MINESWEEPER) {
+      return;
+  }
   static String lastTimeStr = "";
   
   char timeBuf[9];
@@ -916,10 +923,11 @@ void drawLargeTimeOnSplash(bool forceRefresh) {
   }
 }
 
-// ========== 开屏界面 ==========
+// ========== 开屏界面
 void drawSplashScreen() {
   if (lastState != currentState) {
-    showImage565Fast(gImage_img1);
+    showImageFast(gImage_img1, 0, 0, 128, 128); 
+    //showImageFast(gImage_img1);
     lastState = currentState;
     
     drawTempHumOnSplash(true);
@@ -930,14 +938,14 @@ void drawSplashScreen() {
   }
 }
 
-// ========== 主菜单界面 ==========
+// ========== 主菜单
 void drawMainMenu() {
   static int lastSelection = -1;
   static bool firstDraw = true;
   
   if (lastState != currentState || firstDraw) {
-    showImage565Fast(gImage_img1);
-    
+    //showImageFast(gImage_img1);
+    showImageFast(gImage_img1, 0, 0, 128, 128); 
     for(int i = 0; i < mainMenuItemCount; i++) {
       drawStringWithBg(30, 35 + i * 20, mainMenuItems[i], WHITE);
     }
@@ -984,24 +992,21 @@ void drawMainMenu() {
   }
 }
 
-// ========== 游戏选择界面（2列3行图片网格） ==========
+// ========== 游戏选择界面
 void drawGameSelect() {
   static int lastSelection = -1;
   static bool firstDraw = true;
-  
-  // 图标尺寸（30x30）
   const int imgWidth = 30;
   const int imgHeight = 30;
   const int cols = 2;
-  const int startX = (SCREEN_WIDTH - (cols * imgWidth + (cols - 1) * 10)) / 2;  // 水平间距10
+  const int startX = (SCREEN_WIDTH - (cols * imgWidth + (cols - 1) * 10)) / 2; 
   const int startY = 20;
-  const int spacingX = 10;   // 水平间距
+  const int spacingX = 10; 
   const int spacingY = 5;    
   
   if (lastState != currentState || firstDraw) {
-    // 显示背景图片
-    showImage565Fast(gImage_img1);
-    
+   
+    showImageFast(gImage_img1, 0, 0, 128, 128); 
     
     for (int i = 0; i < gameItemCount; i++) {
       int row = i / cols;
@@ -1009,7 +1014,7 @@ void drawGameSelect() {
       int imgX = startX + col * (imgWidth + spacingX);
       int imgY = startY + row * (imgHeight + spacingY);
       
-      // 选择对应的图标
+  
       extern const unsigned char gImage_img_1[1808];
       extern const unsigned char gImage_img_2[1808];
       extern const unsigned char gImage_img_3[1808];
@@ -1021,7 +1026,7 @@ void drawGameSelect() {
         gImage_img_1, gImage_img_2, gImage_img_3, gImage_img_4, gImage_img_5, gImage_img_6
       };
       
-      // 显示30x30图标
+     
       tft.showImage30x30Fast(gameImages[i], imgX, imgY);
     }
     
@@ -1042,11 +1047,10 @@ void drawGameSelect() {
     int oldCol = lastSelection % cols;
     int oldX = startX + oldCol * (imgWidth + spacingX) - 2;
     int oldY = startY + oldRow * (imgHeight + spacingY) - 2;
-    
-    // 只清除选中框边框区域（不重绘图标）
+
     for (int y = oldY; y < oldY + imgHeight + 4; y++) {
       for (int x = oldX; x < oldX + imgWidth + 4; x++) {
-        // 只清除边框位置，跳过图标区域
+
         bool isBorder = (y == oldY || y == oldY + imgHeight + 3 || 
                          x == oldX || x == oldX + imgWidth + 3);
         if (isBorder && x >= 0 && x < SCREEN_WIDTH && y >= 0 && y < SCREEN_HEIGHT) {
@@ -1059,7 +1063,7 @@ void drawGameSelect() {
       }
     }
     
-    // 绘制新的选中框
+
     int newRow = gameSelection / cols;
     int newCol = gameSelection % cols;
     int newX = startX + newCol * (imgWidth + spacingX) - 2;
@@ -1071,14 +1075,14 @@ void drawGameSelect() {
   
   drawTimeOnScreen(62 ,2);
 }
-// ========== 设置界面 ==========
+// ========== 设置
 void drawSettings() {
   static int lastSelection = -1;
   static bool firstDraw = true;
   
   if (lastState != currentState || firstDraw) {
-    showImage565Fast(gImage_img1);
-    
+    //showImageFast(gImage_img1);
+    showImageFast(gImage_img1, 0, 0, 128, 128); 
     //drawStringWithBg(30, 10, "SETTINGS", CYAN);
     
     for(int i = 0; i < settingsItemCount; i++) {
@@ -1127,20 +1131,17 @@ void drawSettings() {
   drawTimeOnScreen(62 ,2);
 }
 
-// ========== 时间设置界面 ==========
 void drawTimeSetting() {
   tft.fillScreen(BLACK);
   tft.drawString("SET TIME", 30, 10, CYAN);
   
-  // 格式化时间字符串
   char timeBuf[9];
   sprintf(timeBuf, "%02d:%02d:%02d", setHour, setMinute, setSecond);
   
   int timeX = 20;
-  int timeY = 40;
+  int timeY = 50;
   
   if (timeSelectIndex == 0) {
-    // 小时被选中
     tft.drawString(timeBuf, timeX, timeY, WHITE);
     tft.fillRect(timeX, timeY, 16, 8, BLACK);
     char hourBuf[3];
@@ -1148,7 +1149,6 @@ void drawTimeSetting() {
     tft.drawString(hourBuf, timeX, timeY, YELLOW);
   } 
   else if (timeSelectIndex == 1) {
-    // 分钟被选中
     tft.drawString(timeBuf, timeX, timeY, WHITE);
     tft.fillRect(timeX + 24, timeY, 16, 8, BLACK);
     char minBuf[3];
@@ -1156,7 +1156,6 @@ void drawTimeSetting() {
     tft.drawString(minBuf, timeX + 24, timeY, YELLOW);
   } 
   else {
-    // 秒被选中
     tft.drawString(timeBuf, timeX, timeY, WHITE);
     tft.fillRect(timeX + 48, timeY, 16, 8, BLACK);
     char secBuf[3];
@@ -1164,16 +1163,13 @@ void drawTimeSetting() {
     tft.drawString(secBuf, timeX + 48, timeY, YELLOW);
   }
   
- // tft.drawString("LEFT/RIGHT: select", 10, 70, GREEN);
-  //tft.drawString("UP/DOWN: adjust", 15, 85, GREEN);
-  //tft.drawString("OK: save & return", 10, 105, YELLOW);
+  drawTimeOnScreen(62, 2);
+  
+
+  lastPress = millis() - 250;
 }
 
-// ========== 亮度设置界面 ==========
 void drawBrightnessSetting() {
-  
-  lastPress = millis() - 250; 
-  
   tft.fillScreen(BLACK);
   tft.drawString("BRIGHTNESS", 20, 10, CYAN);
   
@@ -1184,24 +1180,26 @@ void drawBrightnessSetting() {
   tft.drawRect(14, 60, 100, 10, WHITE);
   tft.fillRect(15, 61, barWidth-2, 8, BLUE);
   
-  drawTimeOnScreen(62 ,2);
+  drawTimeOnScreen(62, 2);
+
+  lastPress = millis() - 250; 
 }
 
-// ========== 闹钟设置界面（时分秒三选项） ==========
+// ========== 闹钟设置
 void drawAlarmSetting() {
   tft.fillScreen(BLACK);
-  tft.drawString("ALARM SET", 30, 10, CYAN);
+  //tft.drawString("ALARM SET", 30, 10, CYAN);
   
-  // 格式化闹钟时间
+
   char timeBuf[9];
   sprintf(timeBuf, "%02d:%02d:%02d", alarmHour, alarmMinute, alarmSecond);
   
-  // 显示时间，根据选中项高亮
+
   int timeX = 20;
   int timeY = 40;
   
   if (alarmSelectIndex == 0) {
-    // 小时被选中
+    // 小时
     tft.drawString(timeBuf, timeX, timeY, WHITE);
     tft.fillRect(timeX, timeY, 16, 8, BLACK);
     char hourBuf[3];
@@ -1209,7 +1207,7 @@ void drawAlarmSetting() {
     tft.drawString(hourBuf, timeX, timeY, YELLOW);
   } 
   else if (alarmSelectIndex == 1) {
-    // 分钟被选中
+    // 分钟
     tft.drawString(timeBuf, timeX, timeY, WHITE);
     tft.fillRect(timeX + 24, timeY, 16, 8, BLACK);
     char minBuf[3];
@@ -1217,7 +1215,7 @@ void drawAlarmSetting() {
     tft.drawString(minBuf, timeX + 24, timeY, YELLOW);
   } 
   else if (alarmSelectIndex == 2) {
-    // 秒被选中
+    // 秒
     tft.drawString(timeBuf, timeX, timeY, WHITE);
     tft.fillRect(timeX + 48, timeY, 16, 8, BLACK);
     char secBuf[3];
@@ -1236,8 +1234,6 @@ void drawAlarmSetting() {
   } else {
     tft.drawString("OFF", 80, 65, RED);
   }
-  
-  // 如果选中了开关，绘制边框
   if (alarmSelectIndex == 3) {
     tft.drawRect(78, 62, 30, 13, YELLOW);
   }
@@ -1253,44 +1249,44 @@ void drawSettingDetail() {
     tft.fillScreen(BLACK);
     lastState = currentState;
   }
-  
-  tft.drawString(settingsItems[settingsSelection], 15, 10, CYAN);
-  
+
   switch(settingsSelection) {
-    case 0:  // Set Time
+    case 0: tft.drawString("SET TIME", 30, 10, CYAN); break;
+    case 1: tft.drawString("NETWORK TIME", 20, 10, CYAN); break;
+    case 2: tft.drawString("BRIGHTNESS", 25, 10, CYAN); break;
+    case 3: tft.drawString("ALARM", 35, 10, CYAN); break;
+    case 4: tft.drawString("GAME SET", 30, 10, CYAN); break;
+    case 5: tft.drawString("INFO", 40, 10, CYAN); break;
+    case 6: tft.drawString("INFO", 40, 10, CYAN); break;
+    default: tft.drawString(settingsItems[settingsSelection], 15, 10, CYAN); break;
+  }
+
+  switch(settingsSelection) {
+    case 0:
       drawTimeSetting();
       break;
-    case 1:  // Network Time (新增)
-      drawTimeOnScreen(5 ,45);
+    case 1:
       drawNetworkTimeSetting();
       break;
-    case 2:  // Brightness
+    case 2:
       drawBrightnessSetting();
       break;
-    case 3:  // Alarm
+    case 3:
       drawAlarmSetting();
       break;
-    case 4: 
-     tft.fillScreen(BLACK);
-     drawMineCountSetting();
-  break;// Option 4
-    case 5:  
-    showImageBuffered(gImage_set2img, 0, 0, 128, 128);// Option 5
-    break;
-    case 6:  // Option 6
-      showImageBuffered(gImage_set1img, 0, 0, 128, 128);
-      /*tft.drawString("Coming Soon...", 20, 50, YELLOW);
-      tft.drawString("This option is", 15, 70, WHITE);
-      tft.drawString("reserved for", 20, 80, WHITE);
-      tft.drawString("future use", 25, 90, WHITE);
-      tft.drawString("LEFT to return", 15, 115, GREEN);*/
+    case 4:
+      drawMineCountSetting();
+      break;
+    case 5:
+
+      break;
+    case 6:
       break;
   }
   
-  drawTimeOnScreen(62 ,2);
+  drawTimeOnScreen(62, 2);
 }
-
-// ========== 关于界面 ==========
+// ========== 关于
 void drawAboutScreen() {
   if (lastState != currentState) {
     tft.fillScreen(BLACK);
@@ -1337,7 +1333,6 @@ void drawDinoObject(GameObject &obj) {
     int w = obj.w;
     int h = obj.h;
 
-    // 图片必须完全在屏幕内才绘制
     if (x >= 0 && y >= 0 && 
         x + w <= SCREEN_WIDTH && 
         y + h <= SCREEN_HEIGHT) {
@@ -1345,7 +1340,7 @@ void drawDinoObject(GameObject &obj) {
     }
 }
 
-// 只擦除物体实际占用的区域（用于清除旧位置）
+
 void clearDinoAreaExact(int x, int y, int w, int h) {
     // 裁剪到屏幕范围内
     if (x + w <= 0 || x >= SCREEN_WIDTH || y + h <= 0 || y >= SCREEN_HEIGHT) return;
@@ -1360,9 +1355,6 @@ void clearDinoAreaExact(int x, int y, int w, int h) {
     }
 }
 
-void drawDinoGround() {
-    tft.fillRect(0, GROUND_Y, SCREEN_WIDTH, 2, WHITE);
-}
 
 void drawDinoScore() {
  
@@ -1401,11 +1393,14 @@ void initDinoGame() {
     
     dinoCurrentObstacle = random(0, dinoObstacleCount);
     dinoObstacles[dinoCurrentObstacle]->x = SCREEN_WIDTH;
+
+    nextObstacleDistance = random(minDistance, maxDistance);
     
     dinoScore = 0;
     dinoGameOver = false;
     dinoJumping = false;
     dinoJumpVelocity = 0;
+    
     
     // 保存初始位置
     lastDinoX = dino.x;
@@ -1416,9 +1411,9 @@ void initDinoGame() {
     lastObstacleIndex = dinoCurrentObstacle;
     
     tft.fillScreen(BLACK);
-    drawDinoGround();
+    tft.fillRect(0, GROUND_Y, SCREEN_WIDTH, 2, WHITE);
     
-    // 绘制初始物体（只有在屏幕内才会绘制）
+    // 绘制初始物体
     drawDinoObject(dinoCloud1);
     drawDinoObject(dinoCloud2);
     drawDinoObject(*dinoObstacles[dinoCurrentObstacle]);
@@ -1447,19 +1442,29 @@ void updateDinoGame() {
     dinoCloud1.x -= 2;
     dinoCloud2.x -= 2;
 
-    // 障碍物超出屏幕处理
+       
     if (dinoObstacles[dinoCurrentObstacle]->x <= -dinoObstacles[dinoCurrentObstacle]->w) {
-        // 擦除旧的障碍物（即使不完全在屏幕内也要清除残留）
         clearDinoAreaExact(oldCactusX, dinoObstacles[dinoCurrentObstacle]->y,
                            dinoObstacles[dinoCurrentObstacle]->w, dinoObstacles[dinoCurrentObstacle]->h);
 
-        // 生成新障碍物
         dinoCurrentObstacle = random(0, dinoObstacleCount);
-        dinoObstacles[dinoCurrentObstacle]->x = SCREEN_WIDTH;
-        dinoScore += 1;
-        drawDinoScore();
         
-        // 绘制新障碍物（只有完全在屏幕内才绘制）
+        // 随分数增加，最小间隔逐渐减小
+        int dynamicMin = max(20, minDistance - dinoScore * 2);
+        int dynamicMax = max(50, maxDistance - dinoScore * 3);
+        nextObstacleDistance = random(dynamicMin, dynamicMax);
+        
+        dinoObstacles[dinoCurrentObstacle]->x = SCREEN_WIDTH + nextObstacleDistance;
+        
+        dinoScore += 1;
+        static int lastScore = -1;
+    if (dinoScore != lastScore) {
+ 
+        tft.fillRect(15, 0, 35, 8, BLACK);
+        tft.drawNumber(dinoScore, 15, 0, YELLOW);
+        lastScore = dinoScore;
+    }
+
         drawDinoObject(*dinoObstacles[dinoCurrentObstacle]);
     }
 
@@ -1517,7 +1522,7 @@ void updateDinoGame() {
 
     
     
-    // 1. 处理云朵（只有位置变化时才处理）
+    // 1. 处理云朵
     if (oldCloud1X != dinoCloud1.x) {
         clearDinoAreaExact(oldCloud1X, dinoCloud1.y, dinoCloud1.w, dinoCloud1.h);
         drawDinoObject(dinoCloud1);
@@ -1535,13 +1540,13 @@ void updateDinoGame() {
                            dinoObstacles[oldObstacleIndex]->w, dinoObstacles[oldObstacleIndex]->h);
         drawDinoObject(*dinoObstacles[dinoCurrentObstacle]);
     } else if (oldCactusX != dinoObstacles[dinoCurrentObstacle]->x) {
-        // 同一个障碍物移动
+      
         GameObject* obs = dinoObstacles[dinoCurrentObstacle];
         
-        // 绘制新位置的障碍物（只有完全在屏幕内才绘制）
+        // 绘制新位置的障碍物
         drawDinoObject(*obs);
         
-        // 擦除旧位置中未被新位置覆盖的部分（向左移动时的右侧残留）
+        // 擦除旧位置覆盖的部分
         if (oldCactusX > obs->x) {
             int eraseX = obs->x + obs->w;
             int eraseW = oldCactusX + obs->w - eraseX;
@@ -1551,7 +1556,7 @@ void updateDinoGame() {
         }
     }
 
-    // 3. 处理恐龙（位置或图片变化）
+    // 恐龙
     bool dinoMoved = (oldDinoX != dino.x || oldDinoY != dino.y);
     bool dinoImgChanged = (anim % 8 == 0);
     
@@ -1563,9 +1568,9 @@ void updateDinoGame() {
     }
 
 
-    drawDinoGround();
+    tft.fillRect(0, GROUND_Y, SCREEN_WIDTH, 2, WHITE);
 }
-// ========== 读取DHT11温湿度 ==========
+// ========== 读取DHT11
 void readDHT11() {
   if (millis() - lastDHTReadTime >= DHT_READ_INTERVAL) {
     lastDHTReadTime = millis();
@@ -1583,284 +1588,15 @@ void readDHT11() {
   }
 }
 
-// ========== 背光控制函数 ==========
+// ========== 背光控制
 void setBrightness(int level) {
   if (level >= 0 && level < BRIGHTNESS_LEVELS) {
     currentBrightnessLevel = level;
-    ledcWrite(BL_PIN, brightnessValues[level]);  // 直接设置，不判断isScreenOff
+    ledcWrite(BL_PIN, brightnessValues[level]); 
   }
 }
 
-/*void turnScreenOn() {
-  if (isScreenOff) {
-    isScreenOff = false;
-    ledcWrite(BL_PIN, brightnessValues[currentBrightnessLevel]);
-    delay(50);
-    if (currentState == STATE_SPLASH) {
-      drawLargeTimeOnSplash(true);
-      drawTempHumOnSplash(true);
-    }
-  }
-}
 
-void turnScreenOff() {
-  if (!isScreenOff) {
-    isScreenOff = true;
-    ledcWrite(BL_PIN, 0);
-  }
-}*/
-
-void handleTimeSetting() {
-  static bool upPressed = false, downPressed = false;
-  static bool leftPressed = false, rightPressed = false;
-  static bool okPressed = false;
-  
-  bool rightKeyPressed = (digitalRead(BTN_DOWN) == LOW && digitalRead(BTN_LEFT) == LOW);
-  
-  // 优先处理左键返回
-  if (digitalRead(BTN_LEFT) == LOW && !leftPressed && !rightKeyPressed) {
-    leftPressed = true;
-    delay(200);
-    if (digitalRead(BTN_LEFT) == LOW) {
-      currentState = STATE_SETTINGS;
-      drawSettings();
-      return;  // 直接返回，不再处理其他按键
-    }
-  }
-  if (digitalRead(BTN_LEFT) == HIGH) leftPressed = false;
-  
-  // 右键
-  if (rightKeyPressed && !rightPressed) {
-    rightPressed = true;
-    delay(50);
-    if (rightKeyPressed) {
-      timeSelectIndex = (timeSelectIndex + 1) % 3;
-      drawTimeSetting();
-    }
-  }
-  if (!rightKeyPressed) rightPressed = false;
-  
-  // 上键
-  if (digitalRead(BTN_UP) == LOW && !upPressed) {
-    upPressed = true;
-    delay(50);
-    if (digitalRead(BTN_UP) == LOW) {
-      if (timeSelectIndex == 0) {
-        setHour = (setHour + 1) % 24;
-      } else if (timeSelectIndex == 1) {
-        setMinute = (setMinute + 1) % 60;
-      } else {
-        setSecond = (setSecond + 1) % 60;
-      }
-      drawTimeSetting();
-    }
-  }
-  if (digitalRead(BTN_UP) == HIGH) upPressed = false;
-  
-  // 下键
-  if (digitalRead(BTN_DOWN) == LOW && !downPressed && !rightKeyPressed) {
-    downPressed = true;
-    delay(50);
-    if (digitalRead(BTN_DOWN) == LOW) {
-      if (timeSelectIndex == 0) {
-        setHour = (setHour - 1 + 24) % 24;
-      } else if (timeSelectIndex == 1) {
-        setMinute = (setMinute - 1 + 60) % 60;
-      } else {
-        setSecond = (setSecond - 1 + 60) % 60;
-      }
-      drawTimeSetting();
-    }
-  }
-  if (digitalRead(BTN_DOWN) == HIGH) downPressed = false;
-  
-  // OK键
-  if (digitalRead(BTN_OK) == LOW && !okPressed) {
-    okPressed = true;
-    delay(200);
-    if (digitalRead(BTN_OK) == LOW) {
-      updateTimeString();
-      currentState = STATE_SETTINGS;
-      drawSettings();
-    }
-  }
-  if (digitalRead(BTN_OK) == HIGH) okPressed = false;
-}
-
-// ========== 亮度设置处理 ==========
-void handleBrightnessSetting() {
-  static bool upPressed = false, downPressed = false;
-  static bool okPressed = false;
-  static unsigned long lastAdjustTime = 0;
-  
-  if (millis() - lastAdjustTime < 200) {
-  } else {
-    if (digitalRead(BTN_UP) == LOW && !upPressed) {
-      upPressed = true;
-      delay(50);
-      if (digitalRead(BTN_UP) == LOW) {
-        if (currentBrightnessLevel < BRIGHTNESS_LEVELS - 1) {
-          currentBrightnessLevel++;
-          setBrightness(currentBrightnessLevel);
-          drawBrightnessSetting();
-          lastAdjustTime = millis();
-        }
-      }
-    }
-    
-    if (digitalRead(BTN_DOWN) == LOW && !downPressed) {
-      downPressed = true;
-      delay(50);
-      if (digitalRead(BTN_DOWN) == LOW) {
-        if (currentBrightnessLevel > 0) {
-          currentBrightnessLevel--;
-          setBrightness(currentBrightnessLevel);
-          drawBrightnessSetting();
-          lastAdjustTime = millis();
-        }
-      }
-    }
-  }
-  
-  if (digitalRead(BTN_UP) == HIGH) upPressed = false;
-  if (digitalRead(BTN_DOWN) == HIGH) downPressed = false;
-  
-  if (digitalRead(BTN_OK) == LOW && !okPressed) {
-    okPressed = true;
-    delay(200);
-    if (digitalRead(BTN_OK) == LOW ) {
-      currentState = STATE_SETTINGS;
-      lastState = STATE_SETTING_DETAIL;
-      drawSettings();
-    }
-  }
-  if (digitalRead(BTN_OK) == HIGH) okPressed = false;
-}
-
-
-void handleAlarmSetting() {
-  static bool upPressed = false, downPressed = false;
-  static bool leftPressed = false, rightPressed = false;
-  static bool okPressed = false;
-  
-  bool rightKeyPressed = (digitalRead(BTN_DOWN) == LOW && digitalRead(BTN_LEFT) == LOW);
-  
-  // 优先处理左键返回
-  if (digitalRead(BTN_LEFT) == LOW && !leftPressed && !rightKeyPressed) {
-    leftPressed = true;
-    delay(200);
-    if (digitalRead(BTN_LEFT) == LOW) {
-      currentState = STATE_SETTINGS;
-      drawSettings();
-      return;
-    }
-  }
-  if (digitalRead(BTN_LEFT) == HIGH) leftPressed = false;
-  
-  if (rightKeyPressed && !rightPressed) {
-    rightPressed = true;
-    delay(50);
-    if (rightKeyPressed) {
-      alarmSelectIndex = (alarmSelectIndex + 1) % 4;
-      drawAlarmSetting();
-    }
-  }
-  if (!rightKeyPressed) rightPressed = false;
-  
-  if (digitalRead(BTN_UP) == LOW && !upPressed) {
-    upPressed = true;
-    delay(50);
-    if (digitalRead(BTN_UP) == LOW) {
-      if (alarmSelectIndex == 0) {
-        alarmHour = (alarmHour + 1) % 24;
-      } else if (alarmSelectIndex == 1) {
-        alarmMinute = (alarmMinute + 1) % 60;
-      } else if (alarmSelectIndex == 2) {
-        alarmSecond = (alarmSecond + 1) % 60;
-      } else if (alarmSelectIndex == 3) {
-        alarmEnabled = !alarmEnabled;
-      }
-      drawAlarmSetting();
-    }
-  }
-  if (digitalRead(BTN_UP) == HIGH) upPressed = false;
-  
-  if (digitalRead(BTN_DOWN) == LOW && !downPressed) {
-    downPressed = true;
-    delay(50);
-    if (digitalRead(BTN_DOWN) == LOW) {
-      if (alarmSelectIndex == 0) {
-        alarmHour = (alarmHour - 1 + 24) % 24;
-      } else if (alarmSelectIndex == 1) {
-        alarmMinute = (alarmMinute - 1 + 60) % 60;
-      } else if (alarmSelectIndex == 2) {
-        alarmSecond = (alarmSecond - 1 + 60) % 60;
-      } else if (alarmSelectIndex == 3) {
-        alarmEnabled = !alarmEnabled;
-      }
-      drawAlarmSetting();
-    }
-  }
-  if (digitalRead(BTN_DOWN) == HIGH) downPressed = false;
-  
-  if (digitalRead(BTN_OK) == LOW && !okPressed) {
-    okPressed = true;
-    delay(200);
-    if (digitalRead(BTN_OK) == LOW) {
-      currentState = STATE_SETTINGS;
-      lastState = STATE_ALARM_SETTING;
-      drawSettings();
-    }
-  }
-  if (digitalRead(BTN_OK) == HIGH) okPressed = false;
-}
-
-/*void handleRightKey() {
-  switch (currentState) {
-    case STATE_SPLASH:
-      currentState = STATE_MAIN_MENU;
-      drawMainMenu();
-      break;
-      
-    case STATE_MAIN_MENU:
-      if (menuSelection == 0) {
-        currentState = STATE_GAME_SELECT;
-        drawGameSelect();
-      } else if (menuSelection == 1) {
-        currentState = STATE_SETTINGS;
-        settingsSelection = 0;
-        drawSettings();
-      } else if (menuSelection == 2) {
-        currentState = STATE_ABOUT;
-        drawAboutScreen();
-      }
-      break;
-      
-    case STATE_SETTINGS:
-      currentState = STATE_SETTING_DETAIL;
-      drawSettingDetail();
-      break;
-      
-    case STATE_TIME_SETTING:
-      timeSelectIndex = (timeSelectIndex + 1) % 3;
-      drawTimeSetting();
-      break;
-      
-    case STATE_ALARM_SETTING:
-      alarmSelectIndex = (alarmSelectIndex + 1) % 4;
-      drawAlarmSetting();
-      break;
-      
-    
-    case STATE_GAME_SELECT:
-    case STATE_CALCULATOR:
-    case STATE_GAME_DINO:
-    case STATE_ABOUT:
-    default:
-      break;
-  }
-}
-*/
 
 
 void initBuzzer() {
@@ -1920,7 +1656,7 @@ void checkAlarm() {
   }
 }
 
-// ========== 停止闹钟 ==========
+// ========== 停止闹钟
 void stopAlarm() {
   if (alarmRinging) {
     alarmRinging = false;
@@ -1928,37 +1664,33 @@ void stopAlarm() {
   }
 }
 
+
+
 void checkButtons() {
   unsigned long currentTime = millis();
   if (currentTime - lastPress < 200) return;
   
-  // 读取原始按键状态
   bool upRaw = (digitalRead(BTN_UP) == LOW);
   bool downRaw = (digitalRead(BTN_DOWN) == LOW);
   bool leftRaw = (digitalRead(BTN_LEFT) == LOW);
   bool okRaw = (digitalRead(BTN_OK) == LOW);
-  
- 
+
   bool rightRaw = (downRaw && leftRaw);
-  
- 
+
   bool up = upRaw;
   bool down = downRaw && !rightRaw;
   bool left = leftRaw && !rightRaw;
   bool right = rightRaw;
   bool ok = okRaw;
-  
-  // 闹钟响铃时停止闹钟
+
   if (alarmRinging && (up || down || left || right || ok)) {
     stopAlarm();
     lastPress = currentTime;
     return;
   }
   
-  // 根据当前状态处理按键
   switch (currentState) {
-    
-    // ========== 开屏界面 ==========
+
     case STATE_SPLASH:
       if (ok) {
         currentState = STATE_MAIN_MENU;
@@ -1966,8 +1698,7 @@ void checkButtons() {
         lastPress = currentTime;
       }
       break;
-    
-    // ========== 主菜单界面 ==========
+
     case STATE_MAIN_MENU:
       if (up) {
         menuSelection = (menuSelection - 1 + mainMenuItemCount) % mainMenuItemCount;
@@ -1981,13 +1712,13 @@ void checkButtons() {
       }
       else if (left) {
         currentState = STATE_SPLASH;
-        lastState = STATE_MAIN_MENU;
         drawSplashScreen();
         lastPress = currentTime;
       }
       else if (right) {
         if (menuSelection == 0) {
           currentState = STATE_GAME_SELECT;
+          gameSelection = 0;
           drawGameSelect();
         } else if (menuSelection == 1) {
           currentState = STATE_SETTINGS;
@@ -2000,11 +1731,9 @@ void checkButtons() {
         lastPress = currentTime;
       }
       break;
-    
-    // ========== 游戏选择界面 ==========
+
     case STATE_GAME_SELECT:
       if (right) {
-        // 右键：向右移动（第0,2,4项可以右移）
         if (gameSelection % 2 == 0 && gameSelection < 5) {
           gameSelection++;
           drawGameSelect();
@@ -2012,11 +1741,10 @@ void checkButtons() {
         lastPress = currentTime;
       }
       else if (left) {
-        // 左键：向左移动或返回主菜单
         if (gameSelection % 2 == 1) {
           gameSelection--;
           drawGameSelect();
-        } else if (gameSelection == 0 || gameSelection == 2 || gameSelection == 4) {
+        } else {
           currentState = STATE_MAIN_MENU;
           menuSelection = 0;
           drawMainMenu();
@@ -2024,7 +1752,6 @@ void checkButtons() {
         lastPress = currentTime;
       }
       else if (up) {
-        // 上键：向上移动一行
         int newRow = (gameSelection / 2) - 1;
         if (newRow >= 0) {
           gameSelection = newRow * 2 + (gameSelection % 2);
@@ -2033,7 +1760,6 @@ void checkButtons() {
         lastPress = currentTime;
       }
       else if (down) {
-        // 下键：向下移动一行
         int newRow = (gameSelection / 2) + 1;
         if (newRow < 3) {
           gameSelection = newRow * 2 + (gameSelection % 2);
@@ -2042,28 +1768,30 @@ void checkButtons() {
         lastPress = currentTime;
       }
       else if (ok) {
-    if (gameSelection == 0) {
-      currentState = STATE_CALCULATOR;
-      calcExpression = "";
-      calcResult = "";
-      calcError = false;
-      drawCalculator();
-    } else if (gameSelection == 1) {
-      currentState = STATE_MINESWEEPER;
-      initMinesweeper();
-    } else if (gameSelection == 2) {  // 第3个游戏 - 俄罗斯方块
-      currentState = STATE_TETRIS;
-      tft.fillScreen(BLACK);
-      initTetris();
-    } else if (gameSelection == 5) {
-      currentState = STATE_GAME_DINO;
-      initDinoGame();
-    }
-    lastPress = currentTime;
-  }
+        if (gameSelection == 0) {
+          currentState = STATE_CALCULATOR;
+          calcExpression = "";
+          calcResult = "";
+          calcError = false;
+          drawCalculator();
+        } else if (gameSelection == 1) {
+          currentState = STATE_MINESWEEPER;
+          initMinesweeper();
+        } else if (gameSelection == 2) {
+          currentState = STATE_TETRIS;
+          tft.fillScreen(BLACK);
+          initTetris();
+        } else if (gameSelection == 3) {
+          currentState = STATE_JUMP_GAME;
+          initJumpGame();
+        } else if (gameSelection == 5) {
+          currentState = STATE_GAME_DINO;
+          initDinoGame();
+        }
+        lastPress = currentTime;
+      }
       break;
-    
-    // ========== 设置界面 ==========
+
     case STATE_SETTINGS:
       if (up) {
         settingsSelection = (settingsSelection - 1 + settingsItemCount) % settingsItemCount;
@@ -2077,7 +1805,6 @@ void checkButtons() {
       }
       else if (left) {
         currentState = STATE_MAIN_MENU;
-        lastState = STATE_SETTINGS;
         menuSelection = 1;
         drawMainMenu();
         lastPress = currentTime;
@@ -2089,301 +1816,304 @@ void checkButtons() {
       }
       break;
     
-    // ========== 设置详情界面 ==========
-   
-    // ========== 设置详情界面 ==========
     case STATE_SETTING_DETAIL:
-      if (left) {
-        currentState = STATE_SETTINGS;
-        drawSettings();
-        lastPress = currentTime;
-      }
-      else if (right) {
-        if (settingsSelection == 0) {
-          currentState = STATE_TIME_SETTING;
-          drawTimeSetting();
-        } else if (settingsSelection == 1) {
-          currentState = STATE_NETWORK_TIME;
-          drawNetworkTimeSetting();
-        } else if (settingsSelection == 2) {
-          currentState = STATE_BRIGHTNESS_SETTING;
-          drawBrightnessSetting();
-        } else if (settingsSelection == 3) {
-          currentState = STATE_ALARM_SETTING;
-          drawAlarmSetting();
-        } else if (settingsSelection == 4) {
-          currentState = STATE_MINE_COUNT_SETTING;
-          tft.fillScreen(BLACK);
-          drawMineCountSetting();
-        }
-        lastPress = currentTime;
-      }
-      break;
+  if (left) {
+    currentState = STATE_SETTINGS;
+    drawSettings();
+    lastPress = currentTime;
+  }
+  else if (right) {
+    if (settingsSelection == 0) {
+      currentState = STATE_TIME_SETTING;
+      drawTimeSetting();
+      lastPress = currentTime - 300;  
+    } else if (settingsSelection == 1) {
+      currentState = STATE_NETWORK_TIME;
+      drawNetworkTimeSetting();
+      lastPress = currentTime - 300;
+    } else if (settingsSelection == 2) {
+      currentState = STATE_BRIGHTNESS_SETTING;
+      drawBrightnessSetting();
+      lastPress = currentTime - 300;
+    } else if (settingsSelection == 3) {
+      currentState = STATE_ALARM_SETTING;
+      drawAlarmSetting();
+      lastPress = currentTime - 300;
+    } else if (settingsSelection == 4) {
+      currentState = STATE_MINE_COUNT_SETTING;
+      tft.fillScreen(BLACK);
+      drawMineCountSetting();
+      lastPress = currentTime - 300;
+    } else if (settingsSelection == 5) {
+
+    } else if (settingsSelection == 6) {
+
+    }
+    lastPress = currentTime;
+  }
+  break;
     
-    // ========== 游戏设置界面（地雷数量 + 俄罗斯方块速度） ==========
-    case STATE_MINE_COUNT_SETTING:
-      // 左键切换选择项
-      if (left) {
-        tetrisSpeedSelectIndex = (tetrisSpeedSelectIndex - 1 + 2) % 2;
-        drawMineCountSetting();
-        lastPress = currentTime;
-      }
-      // 右键切换选择项
-      else if (right) {
-        tetrisSpeedSelectIndex = (tetrisSpeedSelectIndex + 1) % 2;
-        drawMineCountSetting();
-        lastPress = currentTime;
-      }
-      // 上键增加
-      else if (up) {
-        if (tetrisSpeedSelectIndex == 0) {
-          if (mineCount < maxMineCount) mineCount++;
-        } else {
-          if (tetrisSpeed < maxTetrisSpeed) tetrisSpeed += 50;
-        }
-        drawMineCountSetting();
-        lastPress = currentTime;
-      }
-      // 下键减少
-      else if (down) {
-        if (tetrisSpeedSelectIndex == 0) {
-          if (mineCount > minMineCount) mineCount--;
-        } else {
-          if (tetrisSpeed > minTetrisSpeed) tetrisSpeed -= 50;
-        }
-        drawMineCountSetting();
-        lastPress = currentTime;
-      }
-      // OK键返回
-      else if (ok) {
-        currentState = STATE_SETTINGS;
-        drawSettings();
-        lastPress = currentTime;
-      }
-      break;
-case STATE_TIME_SETTING:
-      if (left) {
-        // 左键返回设置菜单
-        currentState = STATE_SETTINGS;
-        drawSettings();
-        lastPress = currentTime;
-      }
-      else if (right) {
-        // 右键切换选择项（时/分/秒）
-        timeSelectIndex = (timeSelectIndex + 1) % 3;
-        drawTimeSetting();
-        lastPress = currentTime;
-      }
-      else if (up) {
-        // 上键增加数值
-        if (timeSelectIndex == 0) {
-          setHour = (setHour + 1) % 24;
-        } else if (timeSelectIndex == 1) {
-          setMinute = (setMinute + 1) % 60;
-        } else {
-          setSecond = (setSecond + 1) % 60;
-        }
-        drawTimeSetting();
-        lastPress = currentTime;
-      }
-      else if (down) {
-        // 下键减少数值
-        if (timeSelectIndex == 0) {
-          setHour = (setHour - 1 + 24) % 24;
-        } else if (timeSelectIndex == 1) {
-          setMinute = (setMinute - 1 + 60) % 60;
-        } else {
-          setSecond = (setSecond - 1 + 60) % 60;
-        }
-        drawTimeSetting();
-        lastPress = currentTime;
-      }
-      else if (ok) {
-        // OK键保存并返回
-        updateTimeString();
-        currentState = STATE_SETTINGS;
-        drawSettings();
-        lastPress = currentTime;
-      }
-      break;
-case STATE_NETWORK_TIME:
+    case STATE_TIME_SETTING:
+  if (left) {
+    currentState = STATE_SETTING_DETAIL;
+    drawSettingDetail();
+    lastPress = currentTime;
+  }
+  else if (right) {
+    timeSelectIndex = (timeSelectIndex + 1) % 3;
+    drawTimeSetting();
+    lastPress = currentTime;
+  }
+  else if (up) {
+    if (timeSelectIndex == 0) setHour = (setHour + 1) % 24;
+    else if (timeSelectIndex == 1) setMinute = (setMinute + 1) % 60;
+    else setSecond = (setSecond + 1) % 60;
+    drawTimeSetting();
+    lastPress = currentTime;
+  }
+  else if (down) {
+    if (timeSelectIndex == 0) setHour = (setHour - 1 + 24) % 24;
+    else if (timeSelectIndex == 1) setMinute = (setMinute - 1 + 60) % 60;
+    else setSecond = (setSecond - 1 + 60) % 60;
+    drawTimeSetting();
+    lastPress = currentTime;
+  }
+  else if (ok) {
+    updateTimeString();
+    currentState = STATE_SETTING_DETAIL;
+    drawSettingDetail();
+    lastPress = currentTime;
+  }
+  break;
+    
+    case STATE_NETWORK_TIME:
   if (wifiSelectMode) {
-    // WiFi选择模式
     if (left) {
-      // 上一个WiFi
       selectedWifiIndex = (selectedWifiIndex - 1 + wifiNetworkCount) % wifiNetworkCount;
       drawNetworkTimeSetting();
       lastPress = currentTime;
     }
     else if (right) {
-      // 下一个WiFi
       selectedWifiIndex = (selectedWifiIndex + 1) % wifiNetworkCount;
       drawNetworkTimeSetting();
       lastPress = currentTime;
     }
     else if (ok) {
-      // 确认选择，退出选择模式
-      wifiSelectMode = false;
-      drawNetworkTimeSetting();
-      lastPress = currentTime;
-    }
-    else if (digitalRead(BTN_LEFT) == LOW && digitalRead(BTN_DOWN) == LOW) {
-      // 右键作为取消（因为右键是组合键）
       wifiSelectMode = false;
       drawNetworkTimeSetting();
       lastPress = currentTime;
     }
   } else {
-    // 普通模式
     if (left) {
-      // 返回设置菜单
-      currentState = STATE_SETTINGS;
-      drawSettings();
+      currentState = STATE_SETTING_DETAIL;
+      drawSettingDetail();
       lastPress = currentTime;
     }
     else if (up) {
-      // 连接WiFi
       initWiFi();
       drawNetworkTimeSetting();
       lastPress = currentTime;
     }
     else if (down) {
-      // 同步时间
-      if (wifiConnected) {
-        syncNetworkTime();
-      } else {
-        // 未连接时先连接
+      if (wifiConnected) syncNetworkTime();
+      else {
         initWiFi();
-        if (wifiConnected) {
-          syncNetworkTime();
-        }
+        if (wifiConnected) syncNetworkTime();
       }
       drawNetworkTimeSetting();
       lastPress = currentTime;
     }
     else if (ok) {
-      // 进入WiFi选择模式
       wifiSelectMode = true;
       drawNetworkTimeSetting();
       lastPress = currentTime;
     }
   }
   break;
-    // ========== 亮度设置界面 ==========
+    
     case STATE_BRIGHTNESS_SETTING:
-  static unsigned long lastBrightnessAdjust = 0;
-  
-  // 添加左键返回
   if (left) {
-    currentState = STATE_SETTINGS;
-    drawSettings();
+    currentState = STATE_SETTING_DETAIL;
+
     lastPress = currentTime;
   }
-  else if (up && (millis() - lastBrightnessAdjust > 200)) {
+  else if (right) {
+    currentState = STATE_SETTING_DETAIL;
+    lastPress = currentTime;
+  }
+  else if (up) {
     if (currentBrightnessLevel < BRIGHTNESS_LEVELS - 1) {
       currentBrightnessLevel++;
       setBrightness(currentBrightnessLevel);
       drawBrightnessSetting();
-      lastBrightnessAdjust = millis();
     }
     lastPress = currentTime;
   }
-  else if (down && (millis() - lastBrightnessAdjust > 200)) {
+  else if (down) {
     if (currentBrightnessLevel > 0) {
       currentBrightnessLevel--;
       setBrightness(currentBrightnessLevel);
       drawBrightnessSetting();
-      lastBrightnessAdjust = millis();
     }
     lastPress = currentTime;
   }
   else if (ok) {
-    currentState = STATE_SETTINGS;
-    drawSettings();
+    currentState = STATE_SETTING_DETAIL;
     lastPress = currentTime;
   }
   break;
-    // ========== 闹钟设置界面 ==========
-    case STATE_ALARM_SETTING:
-      if (left) {
-        alarmSelectIndex = (alarmSelectIndex - 1 + 4) % 4;
-        drawAlarmSetting();
-        lastPress = currentTime;
-      }
-      else if (right) {
-        alarmSelectIndex = (alarmSelectIndex + 1) % 4;
-        drawAlarmSetting();
-        lastPress = currentTime;
-      }
-      else if (up) {
-        if (alarmSelectIndex == 0) alarmHour = (alarmHour + 1) % 24;
-        else if (alarmSelectIndex == 1) alarmMinute = (alarmMinute + 1) % 60;
-        else if (alarmSelectIndex == 2) alarmSecond = (alarmSecond + 1) % 60;
-        else if (alarmSelectIndex == 3) alarmEnabled = !alarmEnabled;
-        drawAlarmSetting();
-        lastPress = currentTime;
-      }
-      else if (down) {
-        if (alarmSelectIndex == 0) alarmHour = (alarmHour - 1 + 24) % 24;
-        else if (alarmSelectIndex == 1) alarmMinute = (alarmMinute - 1 + 60) % 60;
-        else if (alarmSelectIndex == 2) alarmSecond = (alarmSecond - 1 + 60) % 60;
-        else if (alarmSelectIndex == 3) alarmEnabled = !alarmEnabled;
-        drawAlarmSetting();
-        lastPress = currentTime;
-      }
-      else if (ok) {
-        currentState = STATE_SETTINGS;
-        drawSettings();
-        lastPress = currentTime;
-      }
-      break;
     
-    // ========== 关于界面 ==========
+   case STATE_ALARM_SETTING:
+  if (left) {
+    currentState = STATE_SETTING_DETAIL;
+    drawSettingDetail();
+    lastPress = currentTime;
+  }
+  else if (right) {
+    alarmSelectIndex = (alarmSelectIndex + 1) % 4;
+    drawAlarmSetting();
+    lastPress = currentTime;
+  }
+  else if (up) {
+    if (alarmSelectIndex == 0) alarmHour = (alarmHour + 1) % 24;
+    else if (alarmSelectIndex == 1) alarmMinute = (alarmMinute + 1) % 60;
+    else if (alarmSelectIndex == 2) alarmSecond = (alarmSecond + 1) % 60;
+    else if (alarmSelectIndex == 3) alarmEnabled = !alarmEnabled;
+    drawAlarmSetting();
+    lastPress = currentTime;
+  }
+  else if (down) {
+    if (alarmSelectIndex == 0) alarmHour = (alarmHour - 1 + 24) % 24;
+    else if (alarmSelectIndex == 1) alarmMinute = (alarmMinute - 1 + 60) % 60;
+    else if (alarmSelectIndex == 2) alarmSecond = (alarmSecond - 1 + 60) % 60;
+    else if (alarmSelectIndex == 3) alarmEnabled = !alarmEnabled;
+    drawAlarmSetting();
+    lastPress = currentTime;
+  }
+  else if (ok) {
+    currentState = STATE_SETTING_DETAIL;
+    drawSettingDetail();
+    lastPress = currentTime;
+  }
+  break;
+    
+    case STATE_MINE_COUNT_SETTING:
+  if (left) {
+    currentState = STATE_SETTING_DETAIL;
+    drawSettingDetail();
+    lastPress = currentTime;
+  }
+  else if (right) {
+    tetrisSpeedSelectIndex = (tetrisSpeedSelectIndex + 1) % 3;
+    drawMineCountSetting();
+    lastPress = currentTime;
+  }
+  else if (up) {
+    if (tetrisSpeedSelectIndex == 0 && mineCount < maxMineCount) mineCount++;
+    else if (tetrisSpeedSelectIndex == 1 && tetrisSpeed < maxTetrisSpeed) tetrisSpeed += 50;
+    else if (tetrisSpeedSelectIndex == 2) mineBackgroundIndex = (mineBackgroundIndex + 1) % (maxBackgroundIndex + 1);
+    drawMineCountSetting();
+    lastPress = currentTime;
+  }
+  else if (down) {
+    if (tetrisSpeedSelectIndex == 0 && mineCount > minMineCount) mineCount--;
+    else if (tetrisSpeedSelectIndex == 1 && tetrisSpeed > minTetrisSpeed) tetrisSpeed -= 50;
+    else if (tetrisSpeedSelectIndex == 2) mineBackgroundIndex = (mineBackgroundIndex - 1 + maxBackgroundIndex + 1) % (maxBackgroundIndex + 1);
+    drawMineCountSetting();
+    lastPress = currentTime;
+  }
+  else if (ok) {
+    currentState = STATE_SETTING_DETAIL;
+    drawSettingDetail();
+    lastPress = currentTime;
+  }
+  break;
+
     case STATE_ABOUT:
       if (left) {
         currentState = STATE_MAIN_MENU;
-        lastState = STATE_ABOUT;
         menuSelection = 2;
         drawMainMenu();
         lastPress = currentTime;
       }
       break;
-    
-    // ========== 恐龙游戏界面 ==========
+
     case STATE_GAME_DINO:
-      if (ok && !dinoGameOver && !dinoJumping) {
+      if (left) {
+        currentState = STATE_GAME_SELECT;
+        lastState = STATE_JUMP_GAME; 
+        gameSelection = 5;
+        drawGameSelect();
+        lastPress = currentTime;
+      }
+      else if (ok && !dinoGameOver && !dinoJumping) {
         dinoJumping = true;
         dinoJumpVelocity = JUMP_FORCE;
         lastPress = currentTime;
       }
-      if (dinoGameOver && ok) {
-        currentState = STATE_MAIN_MENU;
-        menuSelection = 0;
-        drawMainMenu();
+      else if (dinoGameOver && ok) {
+        currentState = STATE_GAME_SELECT;
+        gameSelection = 5;
+        drawGameSelect();
         lastPress = currentTime;
       }
       break;
-    case STATE_MINESWEEPER:
-  handleMinesweeperInput();
-  break;
 
-case STATE_TETRIS: 
-  handleTetrisInput();
-  break;
-   case STATE_CALCULATOR:      
-      checkCalculatorInput();    
-      break;   
+    case STATE_MINESWEEPER:
+      handleMinesweeperInput();
+      break;
+
+    case STATE_TETRIS:
+      handleTetrisInput();
+      break;
+
+    case STATE_CALCULATOR:
+      checkCalculatorInput();
+      break;
+
+    case STATE_JUMP_GAME:
+      if (left || jumpGame.gameOver && ok ) {
+        currentState = STATE_GAME_SELECT;
+        lastState = STATE_JUMP_GAME; 
+        gameSelection = 3;
+        drawGameSelect();
+        lastPress = currentTime;
+        return;
+      }
+      else if (!jumpGame.gameOver) {
+        static bool lastOkStateJump = false;
+        static bool chargingStarted = false;
+        bool currentOkJump = ok;
+        
+        if (currentOkJump && !lastOkStateJump && !jumpGame.player.isJumping && jumpGame.player.onGround) {
+          jumpGame.isCharging = true;
+          jumpGame.chargeStartTime = millis();
+          chargingStarted = true;
+          lastPress = currentTime;
+        }
+        
+        if (lastOkStateJump && !currentOkJump && chargingStarted && jumpGame.isCharging) {
+          releaseJumpCharge();
+          chargingStarted = false;
+          lastPress = currentTime;
+        }
+        
+        if (jumpGame.player.isJumping && jumpGame.isCharging) {
+          jumpGame.isCharging = false;
+          chargingStarted = false;
+        }
+        
+        lastOkStateJump = currentOkJump;
+      }
+      break;
+      
     default:
       break;
   }
 }
 
 
-
-
-
-
-// ========== 绘制计算器界面 ==========
+// ========== 绘制计算器
 void drawCalculator() {
   drawCalculatorBackground();
   updateCalcExpression();
@@ -2399,11 +2129,9 @@ void calculateResult() {
   }
   
   calcError = false;
-  
-  // 检查表达式是否有效
+
   String expr = calcExpression;
-  
-  // 检查是否有连续的运算符
+
   for (int i = 1; i < expr.length(); i++) {
     if ((expr[i] == '+' || expr[i] == '-' || expr[i] == '*' || expr[i] == '/' || expr[i] == '^' || expr[i] == '.') &&
         (expr[i-1] == '+' || expr[i-1] == '-' || expr[i-1] == '*' || expr[i-1] == '/' || expr[i-1] == '^' || expr[i-1] == '.')) {
@@ -2412,24 +2140,21 @@ void calculateResult() {
       return;
     }
   }
-  
-  // 检查是否以运算符结尾
+
   char lastChar = expr[expr.length() - 1];
   if (lastChar == '+' || lastChar == '-' || lastChar == '*' || lastChar == '/' || lastChar == '^' || lastChar == '.') {
     calcError = true;
     calcResult = "ERROR";
     return;
   }
-  
-  // 检查是否以运算符开头（除了负号）
+
   char firstChar = expr[0];
   if (firstChar == '*' || firstChar == '/' || firstChar == '^') {
     calcError = true;
     calcResult = "ERROR";
     return;
   }
-  
-  // 执行计算
+
   double result = evaluateExpression(expr);
   
   if (!calcError) {
@@ -2442,15 +2167,14 @@ void calculateResult() {
 }
 
 void handleCalculatorInput(char input) {
-  // 如果之前有错误，且不是清除操作，先清空
+
   if (calcError && input != 'C' && input != 'D') {
     calcExpression = "";
     calcResult = "";
     calcError = false;
     needClearOnNextInput = false;
   }
-  
-  // 如果需要在下次输入时清空表达式
+
   if (needClearOnNextInput && input != '=' && input != 'C' && input != 'D') {
     calcExpression = "";
     calcResult = "";
@@ -2542,8 +2266,7 @@ void handleCalculatorInput(char input) {
       needClearOnNextInput = false;
       break;
   }
-  
-  // 局部刷新
+
   updateCalcExpression();
   updateCalcResult();
 }
@@ -2617,7 +2340,7 @@ void checkCalculatorInput() {
     }
   }
   
-  // 光标位置改变时，局部刷新光标
+  // 局部刷新光标
   if (oldCursorX != calcCursorX || oldCursorY != calcCursorY) {
     clearCalcCursor(oldCursorX, oldCursorY);
     drawCalcCursor(calcCursorX, calcCursorY);
@@ -2628,12 +2351,10 @@ void checkCalculatorInput() {
 
 void drawCalculatorBackground() {
   tft.fillScreen(BLACK);
-  
-  // 绘制表达式区域背景
+
   tft.fillRect(5, 18, 118, 15, 0x2104);
   tft.drawRect(5, 18, 118, 15, WHITE);
-  
-  // 绘制结果区域背景
+
   tft.fillRect(5, 36, 118, 15, 0x2104);
   tft.drawRect(5, 36, 118, 15, WHITE);
   
@@ -2714,7 +2435,7 @@ void clearCalcCursor(int oldX, int oldY) {
   uint16_t color;
   char label = calcButtons[oldIdx].label[0];
   if (label == 'C' || label == 'D') {
-    color = RED;
+    color = GREEN;
   } else if (label == '=') {
     color = GREEN;
   } else if (label == '+' || label == '-' || label == '*' || label == '/' || label == '^') {
@@ -2734,7 +2455,7 @@ void clearCalcCursor(int oldX, int oldY) {
     int upIdx = (oldY - 1) * 5 + oldX;
     int upX = calcButtons[upIdx].x;
     int upY = calcButtons[upIdx].y;
-    // 只重绘下半部分可能被覆盖的区域
+
     tft.fillRect(upX, upY + 16, 20, 4, BLACK);
     // 重绘相邻按钮的底部
     uint16_t upColor;
@@ -2869,7 +2590,7 @@ bool syncNetworkTime() {
     // 绘制状态
     tft.fillScreen(BLACK);
     tft.drawString("Time Sync", 30, 10, CYAN);
-    tft.drawString("Getting NTP time...", 5, 40, WHITE);
+    tft.drawString("Getting time...", 5, 40, WHITE);
     
     // 配置NTP
     configTime(gmtOffset_sec, daylightOffset_sec, ntpServer, "time.nist.gov");
@@ -2926,7 +2647,7 @@ void drawNetworkTimeSetting() {
   tft.drawString("WiFi:", 3, 28, WHITE);
   
   if (wifiSelectMode) {
-    // WiFi选择模式：高亮显示
+
     //tft.fillRect(40, 26, 80, 12, 0x39E7); 
     tft.drawRect(1, 40, 122, 12, YELLOW);  
     tft.drawString(wifiNetworks[selectedWifiIndex].ssid, 3, 42, YELLOW);
@@ -2946,14 +2667,12 @@ void drawNetworkTimeSetting() {
   } else {
     tft.drawString("Not connected", 3, 66, RED);
   }
-  
-  // 显示IP地址
+
   if (wifiConnected) {
     tft.drawString("IP:", 3, 85, WHITE);
     tft.drawString(WiFi.localIP().toString().c_str(), 25, 85, CYAN);
   }
-  
-  // 显示当前时间
+
   //char timeBuf[20];
   //sprintf(timeBuf, "%02d:%02d:%02d", setHour, setMinute, setSecond);
   //tft.drawString("Time:", 5, 78, WHITE);
@@ -2975,7 +2694,7 @@ void drawNetworkTimeSetting() {
 
 
 
-// ========== 扫雷游戏函数 ==========
+// ========== 扫雷游戏
 
 void initMinesweeper() {
   mineGameOver = false;
@@ -2987,7 +2706,7 @@ void initMinesweeper() {
   revealedCount = 0;
   flaggedCount = 0;
   
-  // 初始化数组
+
   for (int y = 0; y < MINE_SIZE; y++) {
     for (int x = 0; x < MINE_SIZE; x++) {
       mineField[y][x] = 0;
@@ -2995,7 +2714,7 @@ void initMinesweeper() {
     }
   }
   
-  // 使用可变的 mineCount
+  //mineCount
   int minesPlaced = 0;
   while (minesPlaced < mineCount) {
     int x = random(0, MINE_SIZE);
@@ -3035,12 +2754,11 @@ void revealCell(int x, int y) {
   
   cellState[y][x] = CELL_REVEALED;
   revealedCount++;
-  drawSingleCell(x, y);  
+  drawSingleCell(x, y);
   
   if (mineField[y][x] == -1) {
     mineGameOver = true;
     revealAllMines();
-    updateGameStatus();
     return;
   }
   
@@ -3054,52 +2772,67 @@ void revealCell(int x, int y) {
     }
   }
   
-  
-if (revealedCount == MINE_SIZE * MINE_SIZE - mineCount) {  
-  mineGameWin = true;
-}
+  if (revealedCount == MINE_SIZE * MINE_SIZE - mineCount) {
+    mineGameWin = true;
+  }
 }
 
 void drawMineCountSetting() {
-  // 绘制标题
-  tft.drawString("GAME SETTINGS", 5, 10, CYAN);
+  tft.fillScreen(BLACK);
+  //tft.drawString("GAME SETTINGS", 15, 5, CYAN);
   
-  // ========== 地雷数量设置 ==========
+  // 选项1：地雷数量
   if (tetrisSpeedSelectIndex == 0) {
-    tft.drawString(">", 5, 28, YELLOW);
-    tft.fillRect(5, 55, 10, 10, BLACK);
+    tft.fillRect(5, 20, 7, 8, BLACK);
+    tft.drawString(">", 5, 20, YELLOW);
+  } else {
+    tft.fillRect(5, 20, 7, 8, BLACK);
+    tft.drawString(" ", 5, 20, BLACK);
   }
   char countBuf[20];
   sprintf(countBuf, "Mines: %d", mineCount);
-  tft.fillRect(65, 28, 50, 10, BLACK);
-  tft.drawString(countBuf, 20, 28, WHITE);
+  tft.drawString(countBuf, 20, 20, WHITE);
+
+  int barWidth = map(mineCount, minMineCount, maxMineCount, 10, 60);
+  tft.drawRect(20, 30, 60, 4, WHITE);
+  tft.fillRect(21, 31, barWidth - 2, 2, RED);
   
-  // 地雷数量进度条
-  int barWidth = map(mineCount, minMineCount, maxMineCount, 10, 80);
-  tft.drawRect(20, 40, 80, 6, WHITE);
-  tft.fillRect(21, 41, 78, 4, BLACK);
-  tft.fillRect(21, 41, barWidth - 2, 4, RED);
-  
-  // ========== 俄罗斯方块速度设置 ==========
+  // 选项2：俄罗斯方块速度
   if (tetrisSpeedSelectIndex == 1) {
-    tft.drawString(">", 5, 55, YELLOW);
-    tft.fillRect(5, 28, 10, 10, BLACK);
+    tft.fillRect(5, 45, 7, 8, BLACK);
+    tft.drawString(">", 5, 45, YELLOW);
+  } else {
+    tft.fillRect(5, 45, 7, 8, BLACK);
+    tft.drawString(" ", 5, 45, BLACK);
   }
   char speedBuf[20];
   sprintf(speedBuf, "Speed: %dms", tetrisSpeed);
-  tft.fillRect(65, 55, 50, 10, BLACK);
-  tft.drawString(speedBuf, 20, 55, WHITE);
+  tft.drawString(speedBuf, 20, 45, WHITE);
   
-  // 速度进度条
-  int speedBarWidth = map(tetrisSpeed, minTetrisSpeed, maxTetrisSpeed, 10, 80);
-  tft.drawRect(20, 67, 80, 6, WHITE);
-  tft.fillRect(21, 68, 78, 4, BLACK);
-  tft.fillRect(21, 68, speedBarWidth - 2, 4, BLUE);
+  int speedBarWidth = map(tetrisSpeed, minTetrisSpeed, maxTetrisSpeed, 10, 60);
+  tft.drawRect(20, 55, 60, 4, WHITE);
+  tft.fillRect(21, 56, speedBarWidth - 2, 2, BLUE);
   
-  // 操作提示
-  //tft.drawString("UP/DN: adjust", 5, 85, GREEN);
-  //tft.drawString("L/R: select", 5, 97, GREEN);
-  //tft.drawString("OK: save", 5, 109, YELLOW);
+  // 选项3：扫雷背景
+  if (tetrisSpeedSelectIndex == 2) {
+    tft.fillRect(5, 70, 7, 8, BLACK);
+    tft.drawString(">", 5, 70, YELLOW);
+  } else {
+    tft.fillRect(5, 70, 7, 8, BLACK);
+    tft.drawString(" ", 5, 70, BLACK);
+  }
+  tft.drawString("BG:", 20, 70, WHITE);
+  
+  switch(mineBackgroundIndex) {
+    case 0: tft.drawString("Black", 55, 70, 0x8410); break;
+    case 1: tft.drawString("set1", 55, 70, WHITE); break;
+    case 2: tft.drawString("set2", 55, 70, WHITE); break;
+    case 3: tft.drawString("set3", 55, 70, WHITE); break;
+    case 4: tft.drawString("set4", 55, 70, WHITE); break;
+  }
+  
+  //tft.drawString("L/R:switch  UP/DOWN:adj", 8, 100, GREEN);
+  //tft.drawString("OK:save", 40, 115, YELLOW);
   
   drawTimeOnScreen(62, 2);
 }
@@ -3111,8 +2844,7 @@ void restorePixel(int px, int py) {
     for (int gx = 0; gx < MINE_SIZE; gx++) {
       int cellX = mineStartX + gx * mineCellSize;
       int cellY = mineStartY + gy * mineCellSize;
-      
-      // 检查像素是否在这个格子内或边框上
+
       if (px >= cellX - 2 && px <= cellX + mineCellSize + 2 &&
           py >= cellY - 2 && py <= cellY + mineCellSize + 2) {
         
@@ -3139,7 +2871,7 @@ void restoreCellCorner(int px, int py, int gx, int gy) {
   if (px < 0 || px >= SCREEN_WIDTH || py < 0 || py >= SCREEN_HEIGHT) return;
   drawSingleCell(gx, gy);
 }
-// 显示所有地雷（游戏结束时调用）
+// 显示所有地雷
 void revealAllMines() {
   for (int y = 0; y < MINE_SIZE; y++) {
     for (int x = 0; x < MINE_SIZE; x++) {
@@ -3154,13 +2886,15 @@ void revealAllMines() {
 }
 
 void drawMinesweeper() {
-  tft.fillScreen(BLACK);
-  
- 
+  const uint8_t* bg = getMineBackground();
+  if (bg != nullptr) {
+    showImageFast(bg);
+  } else {
+    tft.fillScreen(BLACK);
+  }
+
   drawFullGrid();
-  updateGameStatus();
   
- 
   lastMineCursorX = mineCursorX;
   lastMineCursorY = mineCursorY;
   drawCursor(mineCursorX, mineCursorY, YELLOW);
@@ -3174,24 +2908,44 @@ void drawFullGrid() {
   }
 }
 
-// 绘制单个格子
 void drawSingleCell(int x, int y) {
   int cellX = mineStartX + x * mineCellSize;
   int cellY = mineStartY + y * mineCellSize;
   
   // 绘制格子背景
   if (cellState[y][x] == CELL_REVEALED) {
+    // 已翻开：浅灰色背景
     tft.fillRect(cellX, cellY, mineCellSize, mineCellSize, MINE_REVEALED_COLOR);
   } else {
-    tft.fillRect(cellX, cellY, mineCellSize, mineCellSize, MINE_BG_COLOR);
+    // 未翻开：从背景图片取对应区域显示
+    const uint8_t* bg = getMineBackground();
+    if (bg != nullptr) {
+      // 显示背景图片对应位置
+      for (int py = 0; py < mineCellSize; py++) {
+        for (int px = 0; px < mineCellSize; px++) {
+          int imgX = cellX + px;
+          int imgY = cellY + py;
+          if (imgX >= 0 && imgX < SCREEN_WIDTH && imgY >= 0 && imgY < SCREEN_HEIGHT) {
+            int pixelIdx = 8 + (imgY * SCREEN_WIDTH + imgX) * 2;
+            uint8_t high = pgm_read_byte(&bg[pixelIdx]);
+            uint8_t low = pgm_read_byte(&bg[pixelIdx + 1]);
+            tft.drawPixel(imgX, imgY, (high << 8) | low);
+          }
+        }
+      }
+    } else {
+      // 纯黑背景
+      tft.fillRect(cellX, cellY, mineCellSize, mineCellSize, MINE_BG_COLOR);
+    }
   }
   
+  // 绘制网格线
   tft.drawRect(cellX, cellY, mineCellSize, mineCellSize, MINE_GRID_COLOR);
   
   // 绘制格子内容
   if (cellState[y][x] == CELL_REVEALED) {
     if (mineField[y][x] == -1) {
-      tft.fillCircle(cellX + mineCellSize/2, cellY + mineCellSize/2, 3, RED);
+      tft.fillCircle(cellX + mineCellSize/2, cellY + mineCellSize/2, 4, RED);
     } else if (mineField[y][x] > 0) {
       uint16_t numColor;
       switch(mineField[y][x]) {
@@ -3202,19 +2956,37 @@ void drawSingleCell(int x, int y) {
       }
       char numStr[2];
       sprintf(numStr, "%d", mineField[y][x]);
-      tft.drawChar(numStr[0], cellX +1, cellY + 2, numColor);
+      tft.drawChar(numStr[0], cellX + 3, cellY + 2, numColor);
     }
   } else if (cellState[y][x] == CELL_FLAGGED) {
+    // 旗子 - 先恢复背景再绘制
+    const uint8_t* bg = getMineBackground();
+    if (bg != nullptr) {
+      for (int py = 0; py < mineCellSize; py++) {
+        for (int px = 0; px < mineCellSize; px++) {
+          int imgX = cellX + px;
+          int imgY = cellY + py;
+          if (imgX >= 0 && imgX < SCREEN_WIDTH && imgY >= 0 && imgY < SCREEN_HEIGHT) {
+            int pixelIdx = 8 + (imgY * SCREEN_WIDTH + imgX) * 2;
+            uint8_t high = pgm_read_byte(&bg[pixelIdx]);
+            uint8_t low = pgm_read_byte(&bg[pixelIdx + 1]);
+            tft.drawPixel(imgX, imgY, (high << 8) | low);
+          }
+        }
+      }
+    } else {
+      tft.fillRect(cellX, cellY, mineCellSize, mineCellSize, MINE_BG_COLOR);
+    }
     tft.fillTriangle(cellX + 3, cellY + 2, 
-                     cellX + 7, cellY + 4,
-                     cellX + 3, cellY + 6, RED);
-    tft.drawLine(cellX + 3, cellY + 2, cellX + 3, cellY + 8, WHITE);
+                     cellX + 9, cellY + 5,
+                     cellX + 3, cellY + 8, RED);
+    tft.drawLine(cellX + 3, cellY + 2, cellX + 3, cellY + 10, WHITE);
   }
 }
 
 void clearCursor(int x, int y) {
+
   drawSingleCell(x, y);
-  
 
   for (int dy = -1; dy <= 1; dy++) {
     for (int dx = -1; dx <= 1; dx++) {
@@ -3225,25 +2997,87 @@ void clearCursor(int x, int y) {
       }
     }
   }
-  
-  
+
   int cursorX = mineStartX + x * mineCellSize;
   int cursorY = mineStartY + y * mineCellSize;
   
- 
+  const uint8_t* bg = getMineBackground();
+  
+  // 左边缘超出
   if (cursorX - 2 < mineStartX) {
-    tft.fillRect(0, cursorY - 2, mineStartX, mineCellSize + 4, BLACK);
+    if (bg != nullptr) {
+      // 从背景图片恢复
+      for (int py = cursorY - 2; py < cursorY + mineCellSize + 2; py++) {
+        for (int px = 0; px < mineStartX; px++) {
+          if (px >= 0 && px < SCREEN_WIDTH && py >= 0 && py < SCREEN_HEIGHT) {
+            int pixelIdx = 8 + (py * SCREEN_WIDTH + px) * 2;
+            uint8_t high = pgm_read_byte(&bg[pixelIdx]);
+            uint8_t low = pgm_read_byte(&bg[pixelIdx + 1]);
+            tft.drawPixel(px, py, (high << 8) | low);
+          }
+        }
+      }
+    } else {
+      tft.fillRect(0, cursorY - 2, mineStartX, mineCellSize + 4, BLACK);
+    }
   }
+  
+  // 右边缘超出
   if (cursorX + mineCellSize + 2 > mineStartX + mineGridWidth) {
-    tft.fillRect(mineStartX + mineGridWidth, cursorY - 2, 
-                 SCREEN_WIDTH - mineStartX - mineGridWidth, mineCellSize + 4, BLACK);
+    int rightX = mineStartX + mineGridWidth;
+    int rightW = SCREEN_WIDTH - rightX;
+    if (bg != nullptr) {
+      for (int py = cursorY - 2; py < cursorY + mineCellSize + 2; py++) {
+        for (int px = rightX; px < SCREEN_WIDTH; px++) {
+          if (px >= 0 && px < SCREEN_WIDTH && py >= 0 && py < SCREEN_HEIGHT) {
+            int pixelIdx = 8 + (py * SCREEN_WIDTH + px) * 2;
+            uint8_t high = pgm_read_byte(&bg[pixelIdx]);
+            uint8_t low = pgm_read_byte(&bg[pixelIdx + 1]);
+            tft.drawPixel(px, py, (high << 8) | low);
+          }
+        }
+      }
+    } else {
+      tft.fillRect(rightX, cursorY - 2, rightW, mineCellSize + 4, BLACK);
+    }
   }
+  
+  // 上边缘超出
   if (cursorY - 2 < mineStartY) {
-    tft.fillRect(cursorX - 2, 0, mineCellSize + 4, mineStartY, BLACK);
+    if (bg != nullptr) {
+      for (int py = 0; py < mineStartY; py++) {
+        for (int px = cursorX - 2; px < cursorX + mineCellSize + 2; px++) {
+          if (px >= 0 && px < SCREEN_WIDTH && py >= 0 && py < SCREEN_HEIGHT) {
+            int pixelIdx = 8 + (py * SCREEN_WIDTH + px) * 2;
+            uint8_t high = pgm_read_byte(&bg[pixelIdx]);
+            uint8_t low = pgm_read_byte(&bg[pixelIdx + 1]);
+            tft.drawPixel(px, py, (high << 8) | low);
+          }
+        }
+      }
+    } else {
+      tft.fillRect(cursorX - 2, 0, mineCellSize + 4, mineStartY, BLACK);
+    }
   }
+  
+  // 下边缘超出
   if (cursorY + mineCellSize + 2 > mineStartY + mineGridWidth) {
-    tft.fillRect(cursorX - 2, mineStartY + mineGridWidth, 
-                 mineCellSize + 4, SCREEN_HEIGHT - mineStartY - mineGridWidth, BLACK);
+    int bottomY = mineStartY + mineGridWidth;
+    int bottomH = SCREEN_HEIGHT - bottomY;
+    if (bg != nullptr) {
+      for (int py = bottomY; py < SCREEN_HEIGHT; py++) {
+        for (int px = cursorX - 2; px < cursorX + mineCellSize + 2; px++) {
+          if (px >= 0 && px < SCREEN_WIDTH && py >= 0 && py < SCREEN_HEIGHT) {
+            int pixelIdx = 8 + (py * SCREEN_WIDTH + px) * 2;
+            uint8_t high = pgm_read_byte(&bg[pixelIdx]);
+            uint8_t low = pgm_read_byte(&bg[pixelIdx + 1]);
+            tft.drawPixel(px, py, (high << 8) | low);
+          }
+        }
+      }
+    } else {
+      tft.fillRect(cursorX - 2, bottomY, mineCellSize + 4, bottomH, BLACK);
+    }
   }
 }
 
@@ -3274,7 +3108,7 @@ void handleMinesweeperInput() {
 static unsigned long lastMoveTime = 0;
   unsigned long currentTime = millis();
   
-  if (currentTime - lastMoveTime < 150) return;
+  if (currentTime - lastMoveTime < 100) return;
   
   bool upPressed = (digitalRead(BTN_UP) == LOW);
   bool downPressed = (digitalRead(BTN_DOWN) == LOW);
@@ -3348,7 +3182,7 @@ else if (right) {
         revealCell(mineCursorX, mineCursorY);
         clearCursor(mineCursorX, mineCursorY);
         drawCursor(mineCursorX, mineCursorY, YELLOW);
-        updateGameStatus();
+      //  updateGameStatus();
       }
       lastMoveTime = currentTime;
     }
@@ -3363,7 +3197,7 @@ else if (right) {
       drawSingleCell(mineCursorX, mineCursorY);
       clearCursor(mineCursorX, mineCursorY);
       drawCursor(mineCursorX, mineCursorY, YELLOW);
-      updateGameStatus();
+    //  updateGameStatus();
       lastMoveTime = currentTime + 200;
     }
   }
@@ -3378,7 +3212,7 @@ void handleMineCountSetting() {
   bool okPressed = (digitalRead(BTN_OK) == LOW);
   bool rightPressed = (digitalRead(BTN_DOWN) == LOW && digitalRead(BTN_LEFT) == LOW);
   
-  // 左键切换选择项
+  // 左
   if (leftPressed && (currentTime - lastAdjustTime > 200)) {
     tetrisSpeedSelectIndex = (tetrisSpeedSelectIndex - 1 + 2) % 2;
     drawMineCountSetting();
@@ -3386,7 +3220,7 @@ void handleMineCountSetting() {
     return;
   }
   
-  // 右键切换选择项
+  // 右
   if (rightPressed && (currentTime - lastAdjustTime > 200)) {
     tetrisSpeedSelectIndex = (tetrisSpeedSelectIndex + 1) % 2;
     drawMineCountSetting();
@@ -3394,7 +3228,7 @@ void handleMineCountSetting() {
     return;
   }
   
-  // 上键增加数值
+  // 上
   if (upPressed && (currentTime - lastAdjustTime > 200)) {
     if (tetrisSpeedSelectIndex == 0) {
       // 调整地雷数量
@@ -3402,7 +3236,7 @@ void handleMineCountSetting() {
         mineCount++;
       }
     } else {
-      // 调整方块速度（数值越小越快）
+      // 调整方块速度
       if (tetrisSpeed < maxTetrisSpeed) {
         tetrisSpeed += 50;
       }
@@ -3411,7 +3245,7 @@ void handleMineCountSetting() {
     lastAdjustTime = currentTime;
   }
   
-  // 下键减少数值
+  // 下
   if (downPressed && (currentTime - lastAdjustTime > 200)) {
     if (tetrisSpeedSelectIndex == 0) {
       // 调整地雷数量
@@ -3428,7 +3262,7 @@ void handleMineCountSetting() {
     lastAdjustTime = currentTime;
   }
   
-  // OK键保存并返回
+  // OK
   if (okPressed && (currentTime - lastAdjustTime > 200)) {
     currentState = STATE_SETTINGS;
     drawSettings();
@@ -3436,39 +3270,7 @@ void handleMineCountSetting() {
   }
 }
 
-void showImageBuffered(const uint8_t* img, int x, int y, int width, int height) {
-  if (!img) return;
-  
 
-  if (x + width <= 0 || x >= SCREEN_WIDTH || y + height <= 0 || y >= SCREEN_HEIGHT) return;
-  
-  int startCol = max(0, -x);
-  int endCol = min(width, SCREEN_WIDTH - x);
-  int startRow = max(0, -y);
-  int endRow = min(height, SCREEN_HEIGHT - y);
-  
-  int idx = 8 + (startRow * width + startCol) * 2;
-  
-  for (int row = startRow; row < endRow; row++) {
-    for (int col = startCol; col < endCol; col++) {
-      uint8_t high = img[idx++];
-      uint8_t low = img[idx++];
-      uint16_t color = (high << 8) | low;
-      tft.drawPixel(x + col, y + row, color);
-    }
-    // 跳过每行末尾超出屏幕的部分
-    if (endCol < width) {
-      idx += (width - endCol) * 2;
-    }
-    // 跳过行首被裁剪的部分
-    if (startCol > 0) {
-      idx += startCol * 2;
-    }
-  }
-}
-
-
-// ========== 俄罗斯方块游戏函数 ==========
 
 void initTetris() {
   // 清空游戏板
@@ -3481,27 +3283,16 @@ void initTetris() {
   tetrisGameOver = false;
   tetrisScore = 0;
   lastFallTime = millis();
-  
-  // 清屏
+
   tft.fillScreen(BLACK);
-  
-  // 绘制游戏板外框
   tft.drawRect(tetrisStartX - 2, tetrisStartY - 2, 
                TETRIS_COLS * TETRIS_CELL_SIZE + 4, 
                TETRIS_ROWS * TETRIS_CELL_SIZE + 4, WHITE);
-  
-  // 绘制游戏板背景
   tft.fillRect(tetrisStartX, tetrisStartY, 
                TETRIS_COLS * TETRIS_CELL_SIZE, 
                TETRIS_ROWS * TETRIS_CELL_SIZE, BLACK);
-  
-  // 生成方块
   spawnShape();
-  
-  // 绘制预览区域
   drawPreview();
-  
-  // 绘制当前方块
   for (int y = 0; y < 4; y++) {
     for (int x = 0; x < 4; x++) {
       if (currentShape[y][x]) {
@@ -3513,8 +3304,7 @@ void initTetris() {
       }
     }
   }
-  
-  // 绘制分数
+
   tft.fillRect(0, 0, SCREEN_WIDTH, 13, BLACK);
   tft.drawString("S:", 0, 2, WHITE);
   tft.drawNumber(0, 15, 2, YELLOW);
@@ -3655,10 +3445,7 @@ void placeShape() {
     }
   }
   
-  // 生成新方块
   spawnShape();
-  
-  // 绘制新方块
   if (!tetrisGameOver) {
     for (int y = 0; y < 4; y++) {
       for (int x = 0; x < 4; x++) {
@@ -3887,14 +3674,265 @@ if (currentTime - lastFallTime > tetrisSpeed) {
 }
 }
 
+// ========== 跳一跳游戏实现 ==========
 
+void initJumpGame() {
+  jumpGame.platformCount = 3;
+  jumpGame.score = 0;
+  jumpGame.gameOver = false;
+  jumpGame.isCharging = false;
+  jumpGame.nextDistance = 30;
+  jumpGame.cameraX = 0;  // 初始相机位置为0
+  
+  // 初始化第一个平台
+  jumpGame.platforms[0].x = 20;
+  jumpGame.platforms[0].y = JUMP_PLAYER_Y;
+  jumpGame.platforms[0].width = JUMP_PLATFORM_WIDTH;
+  jumpGame.platforms[0].height = JUMP_PLATFORM_HEIGHT;
+  
+  // 生成后续平台
+  jumpGame.platforms[1].x = 20 + JUMP_PLATFORM_WIDTH + 25;
+  jumpGame.platforms[1].y = JUMP_PLAYER_Y;
+  jumpGame.platforms[1].width = JUMP_PLATFORM_WIDTH;
+  jumpGame.platforms[1].height = JUMP_PLATFORM_HEIGHT;
+  
+  jumpGame.platforms[2].x = jumpGame.platforms[1].x + JUMP_PLATFORM_WIDTH + 35;
+  jumpGame.platforms[2].y = JUMP_PLAYER_Y;
+  jumpGame.platforms[2].width = JUMP_PLATFORM_WIDTH;
+  jumpGame.platforms[2].height = JUMP_PLATFORM_HEIGHT;
+  
+  // 初始化玩家
+  jumpGame.player.x = jumpGame.platforms[0].x + JUMP_PLATFORM_WIDTH/2 - JUMP_PLAYER_SIZE/2;
+  jumpGame.player.y = JUMP_PLAYER_Y - JUMP_PLAYER_SIZE;
+  jumpGame.player.vx = 0;
+  jumpGame.player.vy = 0;
+  jumpGame.player.size = JUMP_PLAYER_SIZE;
+  jumpGame.player.onGround = true;
+  jumpGame.player.isJumping = false;
+  jumpGame.player.currentPlatformX = jumpGame.platforms[0].x;
+  jumpGame.player.currentPlatformY = jumpGame.platforms[0].y;
+  
+  jumpGame.highScore = 0;
+  
+  tft.fillScreen(BLACK);
+  drawJumpGame();
+}
 
+void drawJumpGame() {
+  // 清屏
+  tft.fillRect(0, 0, SCREEN_WIDTH, JUMP_PLAYER_Y + 30, BLACK);
+  
+  // 绘制所有平台
+  for (int i = 0; i < jumpGame.platformCount; i++) {
+    int drawX = jumpGame.platforms[i].x - jumpGame.cameraX;
+    // 只绘制屏幕内的平台
+    if (drawX + jumpGame.platforms[i].width > 0 && drawX < SCREEN_WIDTH) {
+      drawJumpPlatform(drawX, jumpGame.platforms[i].y, 
+                       jumpGame.platforms[i].width, jumpGame.platforms[i].height);
+    }
+  }
+  
+  // 绘制玩家（使用相机偏移）
+  int playerDrawX = jumpGame.player.x - jumpGame.cameraX;
+  if (playerDrawX + jumpGame.player.size > 0 && playerDrawX < SCREEN_WIDTH) {
+    drawJumpPlayer(playerDrawX, jumpGame.player.y, jumpGame.player.size);
+  }
+  
+  // 绘制分数
+  drawJumpScore();
+  
+  
+  
+  drawTimeOnScreen(62, 2);
+}
+
+void drawJumpPlatform(int x, int y, int width, int height) {
+  // 绘制平台
+  tft.fillRect(x, y, width, height, 0x8410);
+  tft.drawRect(x, y, width, height, WHITE);
+  // 平台顶部高亮
+  tft.drawLine(x, y, x + width - 1, y, YELLOW);
+}
+
+void drawJumpPlayer(int x, int y, int size) {
+  // 绘制玩家（方形小方块）
+  if (!jumpGame.gameOver) {
+    tft.fillRect(x, y, size, size, BLUE);
+    tft.drawRect(x, y, size, size, WHITE);
+    // 绘制眼睛
+    tft.fillCircle(x + size - 3, y + 3, 1, WHITE);
+    tft.fillCircle(x + 3, y + 3, 1, WHITE);
+  } else {
+    // 游戏结束时的X眼睛
+    tft.fillRect(x, y, size, size, 0x8410);
+    tft.drawRect(x, y, size, size, WHITE);
+    tft.drawLine(x + 2, y + 2, x + size - 3, y + size - 3, RED);
+    tft.drawLine(x + size - 3, y + 2, x + 2, y + size - 3, RED);
+  }
+}
+
+void drawJumpScore() {
+  char scoreBuf[20];
+  sprintf(scoreBuf, "S:%d", jumpGame.score);
+  tft.fillRect(0, 0, 50, 20, BLACK);
+  tft.drawString(scoreBuf, 5, 2, YELLOW);
+  
+  if (jumpGame.highScore > 0) {
+    sprintf(scoreBuf, "B:%d", jumpGame.highScore);
+    tft.drawString(scoreBuf, 5, 12, CYAN);
+  }
+  
+  if (jumpGame.gameOver) {
+    tft.fillRect(25, 50, 80, 45, BLACK);
+    tft.drawRect(25, 50, 80, 45, WHITE);
+    tft.drawString("GAME OVER", 28, 55, RED);
+    sprintf(scoreBuf, "SCORE:%d", jumpGame.score);
+    tft.drawString(scoreBuf, 28, 70, WHITE);
+    tft.drawString("OK TO EXIT", 28, 85, GREEN);
+  }
+}
+
+void generateNextPlatform() {
+  // 随机生成下一个平台的距离
+  jumpGame.nextDistance = random(JUMP_MIN_DISTANCE, JUMP_MAX_DISTANCE + 1);
+  
+  // 获取最后一个平台
+  JumpPlatform* lastPlatform = &jumpGame.platforms[jumpGame.platformCount - 1];
+  
+  // 创建新平台
+  jumpGame.platforms[jumpGame.platformCount].x = lastPlatform->x + lastPlatform->width + jumpGame.nextDistance;
+  jumpGame.platforms[jumpGame.platformCount].y = JUMP_PLAYER_Y;
+  jumpGame.platforms[jumpGame.platformCount].width = JUMP_PLATFORM_WIDTH;
+  jumpGame.platforms[jumpGame.platformCount].height = JUMP_PLATFORM_HEIGHT;
+  
+  jumpGame.platformCount++;
+}
+
+void startJumpCharge() {
+  if (!jumpGame.player.isJumping && jumpGame.player.onGround && !jumpGame.gameOver) {
+    jumpGame.isCharging = true;
+    jumpGame.chargeStartTime = millis();
+  }
+}
+
+void releaseJumpCharge() {
+  if (!jumpGame.isCharging) return;
+  
+  // 计算蓄力力度
+  unsigned long chargeTime = millis() - jumpGame.chargeStartTime;
+  int power = constrain(chargeTime * JUMP_MAX_POWER / JUMP_CHARGE_TIME, 
+                        JUMP_MIN_POWER, JUMP_MAX_POWER);
+  
+  jumpGame.currentChargePower = power;
+  jumpGame.isCharging = false;
+  
+  // 执行跳跃
+  jumpGame.player.onGround = false;
+  jumpGame.player.isJumping = true;
+  // 水平速度
+  jumpGame.player.vx = power;
+  jumpGame.player.vy = JUMP_FORCE; 
+  
+  // 清除蓄力条显示区域
+  //tft.fillRect((SCREEN_WIDTH - 80)/2, 2, 80, 18, BLACK);
+}
+
+void updateJumpGame() {
+  if (jumpGame.gameOver) return;
+
+  int oldDrawX = jumpGame.player.x - jumpGame.cameraX;
+  int oldY = jumpGame.player.y;
+
+  if (jumpGame.player.isJumping) {
+
+    jumpGame.player.vy += GRAVITY;
+    jumpGame.player.y += jumpGame.player.vy;
+    jumpGame.player.x += jumpGame.player.vx;
+    
+
+    if (jumpGame.player.y >= JUMP_PLAYER_Y - jumpGame.player.size) {
+      jumpGame.player.y = JUMP_PLAYER_Y - jumpGame.player.size;
+      jumpGame.player.vy = 0;
+      jumpGame.player.vx = 0;
+      jumpGame.player.isJumping = false;
+      jumpGame.player.onGround = true;
+      
+
+      bool onValidPlatform = false;
+      
+      for (int i = 0; i < jumpGame.platformCount; i++) {
+        int platformLeft = jumpGame.platforms[i].x;
+        int platformRight = jumpGame.platforms[i].x + jumpGame.platforms[i].width;
+        int playerLeft = jumpGame.player.x;
+        int playerRight = jumpGame.player.x + jumpGame.player.size;
+        
+        if (playerRight > platformLeft && playerLeft < platformRight) {
+          onValidPlatform = true;
+          break;
+        }
+      }
+      
+      if (onValidPlatform) {
+        jumpGame.score++;
+        
+        if (jumpGame.score > jumpGame.highScore) {
+          jumpGame.highScore = jumpGame.score;
+        }
+        
+        generateNextPlatform();
+        
+
+        int targetCameraX = jumpGame.player.x - 40;
+        if (targetCameraX < 0) targetCameraX = 0;
+        
+
+        if (jumpGame.platformCount > 0) {
+          int lastPlatformRight = jumpGame.platforms[jumpGame.platformCount - 1].x + 
+                                   jumpGame.platforms[jumpGame.platformCount - 1].width;
+          int maxCameraX = lastPlatformRight - SCREEN_WIDTH + 20;
+          if (maxCameraX > 0 && targetCameraX > maxCameraX) {
+            targetCameraX = maxCameraX;
+          }
+        }
+        
+        jumpGame.cameraX = targetCameraX;
+        
+
+        drawJumpGame();
+      } else {
+        jumpGame.gameOver = true;
+        drawJumpGame();
+      }
+    }
+    
+    // 边界限制
+    if (jumpGame.player.x < 0) {
+      jumpGame.player.x = 0;
+      jumpGame.gameOver = true;
+      drawJumpGame();
+      return;
+    }
+  }
+  
+  // 更新显示
+  int newDrawX = jumpGame.player.x - jumpGame.cameraX;
+  
+  if (oldDrawX != newDrawX || oldY != jumpGame.player.y) {
+    tft.fillRect(oldDrawX, oldY, jumpGame.player.size, jumpGame.player.size, BLACK);
+    if (newDrawX + jumpGame.player.size > 0 && newDrawX < SCREEN_WIDTH) {
+      drawJumpPlayer(newDrawX, jumpGame.player.y, jumpGame.player.size);
+    }
+  }
+}
 void setup() {
+  tft.begin();
+  delay(10);
+  tft.setRotation(2);
+  //showImageFast(gImage_set1img);
+  showImageFast(gImage_set1img, 0, 0, 128, 128); 
+  delay(500);
   Serial.begin(115200);
   initBuzzer();
-  tft.begin();
-  delay(200);
-  tft.setRotation(2);
   dht.begin();
   pinMode(BL_PIN, OUTPUT);
   ledcAttach(BL_PIN, 5000, 8);
@@ -3921,13 +3959,15 @@ void setup() {
   settingsSelection = 0;
   isScreenOff = false;
    //randomSeed(analogRead(0)); 
-   randomSeed(esp_random());
+  randomSeed(esp_random());
   updateTimeString();
-  showImage565Fast(gImage_img1);
+  //showImageFast(gImage_img1);
+  showImageFast(gImage_img1, 0, 0, 128, 128); 
   drawSplashScreen();
 }
 void loop() {
   readDHT11();
+  test ();
   unsigned long currentMillis = millis();
   
   if (currentMillis - lastTimeUpdate >= 1000) {
@@ -3953,9 +3993,6 @@ void loop() {
         drawTempHumOnSplash();
       } else {
         drawTimeOnScreen(62 ,2);
-        //if (currentState == STATE_NETWORK_TIME){
-          //drawTimeOnScreen(5 , 45);
-        //}
       }
     }
   }
@@ -3984,7 +4021,7 @@ void loop() {
     okPressedLong = true;
     
     if (isScreenOff) {
-      // 亮屏
+
         esp_pm_config_t pm_config = {
     .max_freq_mhz = 160,     
     .min_freq_mhz = 10,     
@@ -3994,7 +4031,7 @@ void loop() {
       isScreenOff = false;
       ledcWrite(BL_PIN, brightnessValues[currentBrightnessLevel]);
     } else {
-      // 息屏（只关闭背光）
+
       esp_pm_config_t pm_config = {
     .max_freq_mhz = 10,      
     .min_freq_mhz = 10,    
@@ -4020,7 +4057,9 @@ void loop() {
 
 
   checkButtons();
-  
+  if (currentState == STATE_SETTING_DETAIL && lastState != currentState) {
+    drawSettingDetail();
+  }
 
    if (currentState == STATE_GAME_DINO && !dinoGameOver) {
     static unsigned long lastFrame = 0;
@@ -4029,6 +4068,37 @@ void loop() {
       updateDinoGame();
     }
   }
-  
-  delay(10);
+  if (currentState == STATE_JUMP_GAME && !jumpGame.gameOver) {
+  static unsigned long lastJumpFrame = 0;
+  if (currentMillis - lastJumpFrame > 33) {
+    lastJumpFrame = currentMillis;
+    updateJumpGame();
+  }
+}
+}
+void test () {
+   unsigned long currentMillis = millis();
+  static unsigned long lastDebugPrint = 0;
+  if (currentMillis - lastDebugPrint >= 1000) {
+    lastDebugPrint = currentMillis;
+    
+    Serial.print("主频:");
+    Serial.print(ESP.getCpuFreqMHz());
+    Serial.print("MHz 内存:");
+    Serial.print(ESP.getFreeHeap());
+    Serial.print("/");
+    Serial.print(ESP.getHeapSize());
+    Serial.print("B Flash:");
+    Serial.print(ESP.getFlashChipSize() / 1024);
+    Serial.print("KB ");
+    unsigned long seconds = currentMillis / 1000;
+    unsigned long minutes = seconds / 60;
+    unsigned long hours = minutes / 60;
+    Serial.print(hours);
+    Serial.print("h");
+    Serial.print(minutes % 60);
+    Serial.print("m");
+    Serial.print(seconds % 60);
+    Serial.println("s");
+  }
 }

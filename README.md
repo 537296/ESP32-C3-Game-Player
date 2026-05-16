@@ -12,6 +12,7 @@
 - 小恐龙跑酷
 - 俄罗斯方块
 - 计算器
+- 跳一跳
 - WiFi 管理：支持多个 WiFi 预设，一键切换
 - 计划添加其他小游戏
 
@@ -75,8 +76,8 @@ https://espressif.github.io/arduino-esp32/package_esp32_index.json
 
 ---
 
-版本 3.0.0
-------2026.5.3 潘航宇
+版本 4.0.0
+------2026.5.16 潘航宇
 
 
 # ESP32 Multi-functional Desktop Gadget
@@ -92,6 +93,7 @@ My first open-source embedded repository. Stars and Issues are welcome!
 - Minesweeper
 - Dino Run
 - Tetris
+- Jump Game
 - Calculator
 - WiFi Management: support multiple WiFi presets with one-key switching
 - Planning to add more mini-games
@@ -156,5 +158,5 @@ This project is open-sourced under the MIT License. See the LICENSE file for det
 
 ---
 
-Version 3.0.0
-------2026.5.3 Pan Hangyu
+Version 4.0.0
+------2026.5.16 Pan Hangyu

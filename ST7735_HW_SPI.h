@@ -281,7 +281,7 @@ void drawImageMirror(int x, int y, int w, int h, const uint16_t* img) {
   digitalWrite(TFT_CS, HIGH);
 }
 
-// 显示30x30图片（Image2LCD格式）- 修复版
+// 显示30x30图片
 void showImage30x30Fast(const uint8_t* img, int x, int y) {
   if (!img) return;
   
