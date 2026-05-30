@@ -453,7 +453,7 @@ void drawSettings();
 void drawTimeSetting();
 void drawBrightnessSetting();
 void drawAlarmSetting();
-void drawSettingDetail();
+//void drawSettingDetail();
 void drawAboutScreen();
 void drawDinoObject(GameObject &obj);
 void drawDinoScore();
@@ -1244,48 +1244,7 @@ void drawAlarmSetting() {
 }
 
 
-void drawSettingDetail() {
-  if (lastState != currentState) {
-    tft.fillScreen(BLACK);
-    lastState = currentState;
-  }
 
-  switch(settingsSelection) {
-    case 0: tft.drawString("SET TIME", 30, 10, CYAN); break;
-    case 1: tft.drawString("NETWORK TIME", 20, 10, CYAN); break;
-    case 2: tft.drawString("BRIGHTNESS", 25, 10, CYAN); break;
-    case 3: tft.drawString("ALARM", 35, 10, CYAN); break;
-    case 4: tft.drawString("GAME SET", 30, 10, CYAN); break;
-    case 5: tft.drawString("INFO", 40, 10, CYAN); break;
-    case 6: tft.drawString("INFO", 40, 10, CYAN); break;
-    default: tft.drawString(settingsItems[settingsSelection], 15, 10, CYAN); break;
-  }
-
-  switch(settingsSelection) {
-    case 0:
-      drawTimeSetting();
-      break;
-    case 1:
-      drawNetworkTimeSetting();
-      break;
-    case 2:
-      drawBrightnessSetting();
-      break;
-    case 3:
-      drawAlarmSetting();
-      break;
-    case 4:
-      drawMineCountSetting();
-      break;
-    case 5:
-
-      break;
-    case 6:
-      break;
-  }
-  
-  drawTimeOnScreen(62, 2);
-}
 // ========== 关于
 void drawAboutScreen() {
   if (lastState != currentState) {
@@ -1811,223 +1770,258 @@ void checkButtons() {
       }
       else if (right) {
         currentState = STATE_SETTING_DETAIL;
-        drawSettingDetail();
+        //drawSettingDetail();
+        switch(settingsSelection) {
+          case 0:
+            drawTimeSetting();
+            break;
+          case 1:
+            drawNetworkTimeSetting();
+            break;
+          case 2:
+            drawBrightnessSetting();
+            break;
+          case 3:
+            drawAlarmSetting();
+            break;
+          case 4:
+            drawMineCountSetting();
+            break;
+          case 5:
+            showImageFast(gImage_set2img, 0, 0, 128, 128);
+            break;
+          case 6:
+            showImageFast(gImage_set1img, 0, 0, 128, 128);
+            break;
+        }
         lastPress = currentTime;
       }
       break;
     
     case STATE_SETTING_DETAIL:
-  if (left) {
-    currentState = STATE_SETTINGS;
-    drawSettings();
-    lastPress = currentTime;
-  }
-  else if (right) {
-    if (settingsSelection == 0) {
-      currentState = STATE_TIME_SETTING;
-      drawTimeSetting();
-      lastPress = currentTime - 300;  
-    } else if (settingsSelection == 1) {
-      currentState = STATE_NETWORK_TIME;
-      drawNetworkTimeSetting();
-      lastPress = currentTime - 300;
-    } else if (settingsSelection == 2) {
-      currentState = STATE_BRIGHTNESS_SETTING;
-      drawBrightnessSetting();
-      lastPress = currentTime - 300;
-    } else if (settingsSelection == 3) {
-      currentState = STATE_ALARM_SETTING;
-      drawAlarmSetting();
-      lastPress = currentTime - 300;
-    } else if (settingsSelection == 4) {
-      currentState = STATE_MINE_COUNT_SETTING;
-      tft.fillScreen(BLACK);
-      drawMineCountSetting();
-      lastPress = currentTime - 300;
-    } else if (settingsSelection == 5) {
+      if (left) {
+        currentState = STATE_SETTINGS;
+        drawSettings();
+        lastPress = currentTime;
+      }
+      else if (right) {
+        if (settingsSelection == 0) {
+          currentState = STATE_TIME_SETTING;
+          drawTimeSetting();
+          lastPress = currentTime - 300;  
+        } else if (settingsSelection == 1) {
+          currentState = STATE_NETWORK_TIME;
+          drawNetworkTimeSetting();
+          lastPress = currentTime - 300;
+        } else if (settingsSelection == 2) {
+          currentState = STATE_BRIGHTNESS_SETTING;
+          drawBrightnessSetting();
+          lastPress = currentTime - 300;
+        } else if (settingsSelection == 3) {
+          currentState = STATE_ALARM_SETTING;
+          drawAlarmSetting();
+          lastPress = currentTime - 300;
+        } else if (settingsSelection == 4) {
+          currentState = STATE_MINE_COUNT_SETTING;
+          tft.fillScreen(BLACK);
+          drawMineCountSetting();
+          lastPress = currentTime - 300;
+        } else if (settingsSelection == 5) {
 
-    } else if (settingsSelection == 6) {
+        } else if (settingsSelection == 6) {
 
-    }
-    lastPress = currentTime;
-  }
-  break;
+        }
+        lastPress = currentTime;
+      }
+      break;
     
     case STATE_TIME_SETTING:
-  if (left) {
-    currentState = STATE_SETTING_DETAIL;
-    drawSettingDetail();
-    lastPress = currentTime;
-  }
-  else if (right) {
-    timeSelectIndex = (timeSelectIndex + 1) % 3;
-    drawTimeSetting();
-    lastPress = currentTime;
-  }
-  else if (up) {
-    if (timeSelectIndex == 0) setHour = (setHour + 1) % 24;
-    else if (timeSelectIndex == 1) setMinute = (setMinute + 1) % 60;
-    else setSecond = (setSecond + 1) % 60;
-    drawTimeSetting();
-    lastPress = currentTime;
-  }
-  else if (down) {
-    if (timeSelectIndex == 0) setHour = (setHour - 1 + 24) % 24;
-    else if (timeSelectIndex == 1) setMinute = (setMinute - 1 + 60) % 60;
-    else setSecond = (setSecond - 1 + 60) % 60;
-    drawTimeSetting();
-    lastPress = currentTime;
-  }
-  else if (ok) {
-    updateTimeString();
-    currentState = STATE_SETTING_DETAIL;
-    drawSettingDetail();
-    lastPress = currentTime;
-  }
-  break;
+      if (left) {
+        timeSelectIndex = (timeSelectIndex - 1) % 3;
+        //currentState = STATE_SETTING_DETAIL;
+        drawTimeSetting();
+        //drawSettingDetail();
+        lastPress = currentTime;
+      }
+      else if (right) {
+        timeSelectIndex = (timeSelectIndex + 1) % 3;
+        drawTimeSetting();
+        lastPress = currentTime;
+      }
+      else if (up) {
+        if (timeSelectIndex == 0) setHour = (setHour + 1) % 24;
+        else if (timeSelectIndex == 1) setMinute = (setMinute + 1) % 60;
+        else setSecond = (setSecond + 1) % 60;
+        drawTimeSetting();
+        lastPress = currentTime;
+      }
+      else if (down) {
+        if (timeSelectIndex == 0) setHour = (setHour - 1 + 24) % 24;
+        else if (timeSelectIndex == 1) setMinute = (setMinute - 1 + 60) % 60;
+        else setSecond = (setSecond - 1 + 60) % 60;
+        drawTimeSetting();
+        lastPress = currentTime;
+      }
+      else if (ok) {
+        //updateTimeString();
+        drawSettings();
+        currentState = STATE_SETTINGS;
+        lastState = STATE_TIME_SETTING;
+        lastPress = currentTime;
+      }
+      break;
     
     case STATE_NETWORK_TIME:
-  if (wifiSelectMode) {
-    if (left) {
-      selectedWifiIndex = (selectedWifiIndex - 1 + wifiNetworkCount) % wifiNetworkCount;
-      drawNetworkTimeSetting();
-      lastPress = currentTime;
-    }
-    else if (right) {
-      selectedWifiIndex = (selectedWifiIndex + 1) % wifiNetworkCount;
-      drawNetworkTimeSetting();
-      lastPress = currentTime;
-    }
-    else if (ok) {
-      wifiSelectMode = false;
-      drawNetworkTimeSetting();
-      lastPress = currentTime;
-    }
-  } else {
-    if (left) {
-      currentState = STATE_SETTING_DETAIL;
-      drawSettingDetail();
-      lastPress = currentTime;
-    }
-    else if (up) {
-      initWiFi();
-      drawNetworkTimeSetting();
-      lastPress = currentTime;
-    }
-    else if (down) {
-      if (wifiConnected) syncNetworkTime();
-      else {
-        initWiFi();
-        if (wifiConnected) syncNetworkTime();
+      if (wifiSelectMode) {
+        if (left) {
+          selectedWifiIndex = (selectedWifiIndex - 1 + wifiNetworkCount) % wifiNetworkCount;
+          drawNetworkTimeSetting();
+          lastPress = currentTime;
+        }
+        else if (right) {
+          selectedWifiIndex = (selectedWifiIndex + 1) % wifiNetworkCount;
+          drawNetworkTimeSetting();
+          lastPress = currentTime;
+        }
+        else if (ok) {
+          wifiSelectMode = false;
+          drawNetworkTimeSetting();
+          lastPress = currentTime;
+        }
+      } else {
+        if (left) {
+          drawSettings();
+          lastState = STATE_SETTING_DETAIL;
+          currentState = STATE_SETTINGS;
+          //drawSettingDetail();
+          lastPress = currentTime;
+        }
+        else if (up) {
+          initWiFi();
+          drawNetworkTimeSetting();
+          lastPress = currentTime;
+        }
+        else if (down) {
+          if (wifiConnected) syncNetworkTime();
+          else {
+            initWiFi();
+            if (wifiConnected) syncNetworkTime();
+          }
+          drawNetworkTimeSetting();
+          lastPress = currentTime;
+        }
+        else if (ok) {
+          wifiSelectMode = true;
+          drawNetworkTimeSetting();
+          lastPress = currentTime;
+        }
       }
-      drawNetworkTimeSetting();
-      lastPress = currentTime;
-    }
-    else if (ok) {
-      wifiSelectMode = true;
-      drawNetworkTimeSetting();
-      lastPress = currentTime;
-    }
-  }
-  break;
+      break;
     
     case STATE_BRIGHTNESS_SETTING:
-  if (left) {
-    currentState = STATE_SETTING_DETAIL;
-
-    lastPress = currentTime;
-  }
-  else if (right) {
-    currentState = STATE_SETTING_DETAIL;
-    lastPress = currentTime;
-  }
-  else if (up) {
-    if (currentBrightnessLevel < BRIGHTNESS_LEVELS - 1) {
-      currentBrightnessLevel++;
-      setBrightness(currentBrightnessLevel);
-      drawBrightnessSetting();
-    }
-    lastPress = currentTime;
-  }
-  else if (down) {
-    if (currentBrightnessLevel > 0) {
-      currentBrightnessLevel--;
-      setBrightness(currentBrightnessLevel);
-      drawBrightnessSetting();
-    }
-    lastPress = currentTime;
-  }
-  else if (ok) {
-    currentState = STATE_SETTING_DETAIL;
-    lastPress = currentTime;
-  }
-  break;
+      if (left) {
+        //lastState = STATE_SETTING_DETAIL;
+        lastState = STATE_BRIGHTNESS_SETTING;
+        currentState = STATE_SETTINGS;
+        drawSettings();
+        lastPress = currentTime;
+      }
+      //else if (right) {
+      //  currentState = STATE_SETTING_DETAIL;
+      //  lastPress = currentTime;
+      //}
+      else if (up) {
+        if (currentBrightnessLevel < BRIGHTNESS_LEVELS - 1) {
+          currentBrightnessLevel++;
+          setBrightness(currentBrightnessLevel);
+          drawBrightnessSetting();
+        }
+        lastPress = currentTime;
+      }
+      else if (down) {
+        if (currentBrightnessLevel > 0) {
+          currentBrightnessLevel--;
+          setBrightness(currentBrightnessLevel);
+          drawBrightnessSetting();
+        }
+        lastPress = currentTime;
+      }
+      else if (ok) {
+        lastState = STATE_SETTING_DETAIL;
+        currentState = STATE_SETTINGS;
+        drawSettings();
+        lastPress = currentTime;
+      }
+      break;
     
-   case STATE_ALARM_SETTING:
-  if (left) {
-    currentState = STATE_SETTING_DETAIL;
-    drawSettingDetail();
-    lastPress = currentTime;
-  }
-  else if (right) {
-    alarmSelectIndex = (alarmSelectIndex + 1) % 4;
-    drawAlarmSetting();
-    lastPress = currentTime;
-  }
-  else if (up) {
-    if (alarmSelectIndex == 0) alarmHour = (alarmHour + 1) % 24;
-    else if (alarmSelectIndex == 1) alarmMinute = (alarmMinute + 1) % 60;
-    else if (alarmSelectIndex == 2) alarmSecond = (alarmSecond + 1) % 60;
-    else if (alarmSelectIndex == 3) alarmEnabled = !alarmEnabled;
-    drawAlarmSetting();
-    lastPress = currentTime;
-  }
-  else if (down) {
-    if (alarmSelectIndex == 0) alarmHour = (alarmHour - 1 + 24) % 24;
-    else if (alarmSelectIndex == 1) alarmMinute = (alarmMinute - 1 + 60) % 60;
-    else if (alarmSelectIndex == 2) alarmSecond = (alarmSecond - 1 + 60) % 60;
-    else if (alarmSelectIndex == 3) alarmEnabled = !alarmEnabled;
-    drawAlarmSetting();
-    lastPress = currentTime;
-  }
-  else if (ok) {
-    currentState = STATE_SETTING_DETAIL;
-    drawSettingDetail();
-    lastPress = currentTime;
-  }
-  break;
+    case STATE_ALARM_SETTING:
+      if (left) {
+        alarmSelectIndex = (alarmSelectIndex - 1) % 4;
+        drawAlarmSetting();
+        lastPress = currentTime;
+      }
+      else if (right) {
+        alarmSelectIndex = (alarmSelectIndex + 1) % 4;
+        drawAlarmSetting();
+        lastPress = currentTime;
+      }
+      else if (up) {
+        if (alarmSelectIndex == 0) alarmHour = (alarmHour + 1) % 24;
+        else if (alarmSelectIndex == 1) alarmMinute = (alarmMinute + 1) % 60;
+        else if (alarmSelectIndex == 2) alarmSecond = (alarmSecond + 1) % 60;
+        else if (alarmSelectIndex == 3) alarmEnabled = !alarmEnabled;
+        drawAlarmSetting();
+        lastPress = currentTime;
+      }
+      else if (down) {
+        if (alarmSelectIndex == 0) alarmHour = (alarmHour - 1 + 24) % 24;
+        else if (alarmSelectIndex == 1) alarmMinute = (alarmMinute - 1 + 60) % 60;
+        else if (alarmSelectIndex == 2) alarmSecond = (alarmSecond - 1 + 60) % 60;
+        else if (alarmSelectIndex == 3) alarmEnabled = !alarmEnabled;
+        drawAlarmSetting();
+        lastPress = currentTime;
+      }
+      else if (ok) {
+        currentState = STATE_SETTINGS;
+        lastState = STATE_NETWORK_TIME;
+        drawSettings();
+        //drawSettingDetail();
+        lastPress = currentTime;
+      }
+      break;
     
     case STATE_MINE_COUNT_SETTING:
-  if (left) {
-    currentState = STATE_SETTING_DETAIL;
-    drawSettingDetail();
-    lastPress = currentTime;
-  }
-  else if (right) {
-    tetrisSpeedSelectIndex = (tetrisSpeedSelectIndex + 1) % 3;
-    drawMineCountSetting();
-    lastPress = currentTime;
-  }
-  else if (up) {
-    if (tetrisSpeedSelectIndex == 0 && mineCount < maxMineCount) mineCount++;
-    else if (tetrisSpeedSelectIndex == 1 && tetrisSpeed < maxTetrisSpeed) tetrisSpeed += 50;
-    else if (tetrisSpeedSelectIndex == 2) mineBackgroundIndex = (mineBackgroundIndex + 1) % (maxBackgroundIndex + 1);
-    drawMineCountSetting();
-    lastPress = currentTime;
-  }
-  else if (down) {
-    if (tetrisSpeedSelectIndex == 0 && mineCount > minMineCount) mineCount--;
-    else if (tetrisSpeedSelectIndex == 1 && tetrisSpeed > minTetrisSpeed) tetrisSpeed -= 50;
-    else if (tetrisSpeedSelectIndex == 2) mineBackgroundIndex = (mineBackgroundIndex - 1 + maxBackgroundIndex + 1) % (maxBackgroundIndex + 1);
-    drawMineCountSetting();
-    lastPress = currentTime;
-  }
-  else if (ok) {
-    currentState = STATE_SETTING_DETAIL;
-    drawSettingDetail();
-    lastPress = currentTime;
-  }
-  break;
+      if (left) {
+        tetrisSpeedSelectIndex = (tetrisSpeedSelectIndex - 1) % 3;
+        drawMineCountSetting();
+        lastPress = currentTime;
+      }
+      else if (right) {
+        tetrisSpeedSelectIndex = (tetrisSpeedSelectIndex + 1) % 3;
+        drawMineCountSetting();
+        lastPress = currentTime;
+      }
+      else if (up) {
+        if (tetrisSpeedSelectIndex == 0 && mineCount < maxMineCount) mineCount++;
+        else if (tetrisSpeedSelectIndex == 1 && tetrisSpeed < maxTetrisSpeed) tetrisSpeed += 50;
+        else if (tetrisSpeedSelectIndex == 2) mineBackgroundIndex = (mineBackgroundIndex + 1) % (maxBackgroundIndex + 1);
+        drawMineCountSetting();
+        lastPress = currentTime;
+      }
+      else if (down) {
+        if (tetrisSpeedSelectIndex == 0 && mineCount > minMineCount) mineCount--;
+        else if (tetrisSpeedSelectIndex == 1 && tetrisSpeed > minTetrisSpeed) tetrisSpeed -= 50;
+        else if (tetrisSpeedSelectIndex == 2) mineBackgroundIndex = (mineBackgroundIndex - 1 + maxBackgroundIndex + 1) % (maxBackgroundIndex + 1);
+        drawMineCountSetting();
+        lastPress = currentTime;
+      }
+      else if (ok) {
+        lastState = STATE_MINE_COUNT_SETTING;
+        currentState = STATE_SETTINGS;
+        drawSettings();
+        lastPress = currentTime;
+      }
+      break;
 
     case STATE_ABOUT:
       if (left) {
@@ -2053,6 +2047,7 @@ void checkButtons() {
       }
       else if (dinoGameOver && ok) {
         currentState = STATE_GAME_SELECT;
+        lastState = STATE_JUMP_GAME;
         gameSelection = 5;
         drawGameSelect();
         lastPress = currentTime;
@@ -2072,7 +2067,7 @@ void checkButtons() {
       break;
 
     case STATE_JUMP_GAME:
-      if (left || jumpGame.gameOver && ok ) {
+      if (left || jumpGame.gameOver && ok) {
         currentState = STATE_GAME_SELECT;
         lastState = STATE_JUMP_GAME; 
         gameSelection = 3;
@@ -3674,34 +3669,38 @@ if (currentTime - lastFallTime > tetrisSpeed) {
 }
 }
 
-// ========== 跳一跳游戏实现 ==========
+
 
 void initJumpGame() {
-  jumpGame.platformCount = 3;
+
+  for (int i = 0; i < MAX_PLATFORMS; i++) {
+    jumpGame.platforms[i].active = false;
+  }
+  
+  jumpGame.platformCount = 0;
+  jumpGame.nextPlatformId = 0;
   jumpGame.score = 0;
   jumpGame.gameOver = false;
   jumpGame.isCharging = false;
   jumpGame.nextDistance = 30;
-  jumpGame.cameraX = 0;  // 初始相机位置为0
-  
-  // 初始化第一个平台
+  jumpGame.cameraX = 0;
+  jumpGame.chargeStartTime = 0;
+  jumpGame.currentChargePower = 0;
+  jumpGame.lastPlatformX = 20;  // 起始位置
+
   jumpGame.platforms[0].x = 20;
   jumpGame.platforms[0].y = JUMP_PLAYER_Y;
   jumpGame.platforms[0].width = JUMP_PLATFORM_WIDTH;
   jumpGame.platforms[0].height = JUMP_PLATFORM_HEIGHT;
+  jumpGame.platforms[0].active = true;
+  jumpGame.platformCount = 1;
+  jumpGame.nextPlatformId = 1;
   
-  // 生成后续平台
-  jumpGame.platforms[1].x = 20 + JUMP_PLATFORM_WIDTH + 25;
-  jumpGame.platforms[1].y = JUMP_PLAYER_Y;
-  jumpGame.platforms[1].width = JUMP_PLATFORM_WIDTH;
-  jumpGame.platforms[1].height = JUMP_PLATFORM_HEIGHT;
-  
-  jumpGame.platforms[2].x = jumpGame.platforms[1].x + JUMP_PLATFORM_WIDTH + 35;
-  jumpGame.platforms[2].y = JUMP_PLAYER_Y;
-  jumpGame.platforms[2].width = JUMP_PLATFORM_WIDTH;
-  jumpGame.platforms[2].height = JUMP_PLATFORM_HEIGHT;
-  
-  // 初始化玩家
+  // 预先生成几个平台
+  for (int i = 1; i < 4; i++) {
+    generateNextPlatform();
+  }
+
   jumpGame.player.x = jumpGame.platforms[0].x + JUMP_PLATFORM_WIDTH/2 - JUMP_PLAYER_SIZE/2;
   jumpGame.player.y = JUMP_PLAYER_Y - JUMP_PLAYER_SIZE;
   jumpGame.player.vx = 0;
@@ -3719,30 +3718,24 @@ void initJumpGame() {
 }
 
 void drawJumpGame() {
-  // 清屏
   tft.fillRect(0, 0, SCREEN_WIDTH, JUMP_PLAYER_Y + 30, BLACK);
-  
-  // 绘制所有平台
-  for (int i = 0; i < jumpGame.platformCount; i++) {
+
+  for (int i = 0; i < MAX_PLATFORMS; i++) {
+    if (!jumpGame.platforms[i].active) continue;
+    
     int drawX = jumpGame.platforms[i].x - jumpGame.cameraX;
-    // 只绘制屏幕内的平台
     if (drawX + jumpGame.platforms[i].width > 0 && drawX < SCREEN_WIDTH) {
       drawJumpPlatform(drawX, jumpGame.platforms[i].y, 
                        jumpGame.platforms[i].width, jumpGame.platforms[i].height);
     }
   }
   
-  // 绘制玩家（使用相机偏移）
   int playerDrawX = jumpGame.player.x - jumpGame.cameraX;
   if (playerDrawX + jumpGame.player.size > 0 && playerDrawX < SCREEN_WIDTH) {
     drawJumpPlayer(playerDrawX, jumpGame.player.y, jumpGame.player.size);
   }
   
-  // 绘制分数
   drawJumpScore();
-  
-  
-  
   drawTimeOnScreen(62, 2);
 }
 
@@ -3793,21 +3786,54 @@ void drawJumpScore() {
 }
 
 void generateNextPlatform() {
-  // 随机生成下一个平台的距离
+
+  int id = jumpGame.nextPlatformId;
+  
+
+  if (jumpGame.platformCount >= MAX_PLATFORMS) {
+    recycleOldPlatforms();
+
+    id = jumpGame.nextPlatformId;
+  }
+  
+
   jumpGame.nextDistance = random(JUMP_MIN_DISTANCE, JUMP_MAX_DISTANCE + 1);
+
+  jumpGame.platforms[id].x = jumpGame.lastPlatformX + JUMP_PLATFORM_WIDTH + jumpGame.nextDistance;
+  jumpGame.platforms[id].y = JUMP_PLAYER_Y;
+  jumpGame.platforms[id].width = JUMP_PLATFORM_WIDTH;
+  jumpGame.platforms[id].height = JUMP_PLATFORM_HEIGHT;
+  jumpGame.platforms[id].active = true;
   
-  // 获取最后一个平台
-  JumpPlatform* lastPlatform = &jumpGame.platforms[jumpGame.platformCount - 1];
+
+  jumpGame.lastPlatformX = jumpGame.platforms[id].x;
   
-  // 创建新平台
-  jumpGame.platforms[jumpGame.platformCount].x = lastPlatform->x + lastPlatform->width + jumpGame.nextDistance;
-  jumpGame.platforms[jumpGame.platformCount].y = JUMP_PLAYER_Y;
-  jumpGame.platforms[jumpGame.platformCount].width = JUMP_PLATFORM_WIDTH;
-  jumpGame.platforms[jumpGame.platformCount].height = JUMP_PLATFORM_HEIGHT;
-  
+
+  jumpGame.nextPlatformId = (jumpGame.nextPlatformId + 1) % MAX_PLATFORMS;
   jumpGame.platformCount++;
 }
+void recycleOldPlatforms() {
+  int screenLeft = jumpGame.cameraX - 50; 
+  
+  for (int i = 0; i < MAX_PLATFORMS; i++) {
+    if (jumpGame.platforms[i].active) {
+      int platformRight = jumpGame.platforms[i].x + jumpGame.platforms[i].width;
 
+      if (platformRight < screenLeft) {
+        jumpGame.platforms[i].active = false;
+        jumpGame.platformCount--;
+      }
+    }
+  }
+  
+  // 重置nextPlatformId到第一个空位
+  for (int i = 0; i < MAX_PLATFORMS; i++) {
+    if (!jumpGame.platforms[i].active) {
+      jumpGame.nextPlatformId = i;
+      break;
+    }
+  }
+}
 void startJumpCharge() {
   if (!jumpGame.player.isJumping && jumpGame.player.onGround && !jumpGame.gameOver) {
     jumpGame.isCharging = true;
@@ -3839,17 +3865,15 @@ void releaseJumpCharge() {
 
 void updateJumpGame() {
   if (jumpGame.gameOver) return;
-
+  
   int oldDrawX = jumpGame.player.x - jumpGame.cameraX;
   int oldY = jumpGame.player.y;
-
+  
   if (jumpGame.player.isJumping) {
-
     jumpGame.player.vy += GRAVITY;
     jumpGame.player.y += jumpGame.player.vy;
     jumpGame.player.x += jumpGame.player.vx;
     
-
     if (jumpGame.player.y >= JUMP_PLAYER_Y - jumpGame.player.size) {
       jumpGame.player.y = JUMP_PLAYER_Y - jumpGame.player.size;
       jumpGame.player.vy = 0;
@@ -3857,10 +3881,12 @@ void updateJumpGame() {
       jumpGame.player.isJumping = false;
       jumpGame.player.onGround = true;
       
-
+      // 检查是否落在平台上
       bool onValidPlatform = false;
       
-      for (int i = 0; i < jumpGame.platformCount; i++) {
+      for (int i = 0; i < MAX_PLATFORMS; i++) {
+        if (!jumpGame.platforms[i].active) continue;
+        
         int platformLeft = jumpGame.platforms[i].x;
         int platformRight = jumpGame.platforms[i].x + jumpGame.platforms[i].width;
         int playerLeft = jumpGame.player.x;
@@ -3879,25 +3905,23 @@ void updateJumpGame() {
           jumpGame.highScore = jumpGame.score;
         }
         
+
         generateNextPlatform();
-        
+
+        recycleOldPlatforms();
 
         int targetCameraX = jumpGame.player.x - 40;
         if (targetCameraX < 0) targetCameraX = 0;
         
-
         if (jumpGame.platformCount > 0) {
-          int lastPlatformRight = jumpGame.platforms[jumpGame.platformCount - 1].x + 
-                                   jumpGame.platforms[jumpGame.platformCount - 1].width;
-          int maxCameraX = lastPlatformRight - SCREEN_WIDTH + 20;
+          long lastPlatformRight = (long)jumpGame.lastPlatformX + JUMP_PLATFORM_WIDTH;
+          int maxCameraX = (int)(lastPlatformRight - SCREEN_WIDTH + 20);
           if (maxCameraX > 0 && targetCameraX > maxCameraX) {
             targetCameraX = maxCameraX;
           }
         }
         
         jumpGame.cameraX = targetCameraX;
-        
-
         drawJumpGame();
       } else {
         jumpGame.gameOver = true;
@@ -3905,7 +3929,6 @@ void updateJumpGame() {
       }
     }
     
-    // 边界限制
     if (jumpGame.player.x < 0) {
       jumpGame.player.x = 0;
       jumpGame.gameOver = true;
@@ -3914,7 +3937,6 @@ void updateJumpGame() {
     }
   }
   
-  // 更新显示
   int newDrawX = jumpGame.player.x - jumpGame.cameraX;
   
   if (oldDrawX != newDrawX || oldY != jumpGame.player.y) {
@@ -3967,7 +3989,7 @@ void setup() {
 }
 void loop() {
   readDHT11();
-  test ();
+  //test ();
   unsigned long currentMillis = millis();
   
   if (currentMillis - lastTimeUpdate >= 1000) {
@@ -4057,9 +4079,9 @@ void loop() {
 
 
   checkButtons();
-  if (currentState == STATE_SETTING_DETAIL && lastState != currentState) {
-    drawSettingDetail();
-  }
+  //if (currentState == STATE_SETTING_DETAIL && lastState != currentState) {
+    //drawSettingDetail();
+  //}
 
    if (currentState == STATE_GAME_DINO && !dinoGameOver) {
     static unsigned long lastFrame = 0;
@@ -4076,7 +4098,7 @@ void loop() {
   }
 }
 }
-void test () {
+/*void test () {
    unsigned long currentMillis = millis();
   static unsigned long lastDebugPrint = 0;
   if (currentMillis - lastDebugPrint >= 1000) {
@@ -4101,4 +4123,4 @@ void test () {
     Serial.print(seconds % 60);
     Serial.println("s");
   }
-}
+}*/
